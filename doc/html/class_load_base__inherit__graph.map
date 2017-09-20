@@ -1,0 +1,12 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$class_elem_load.html" title="ElemLoad" alt="" coords="497,83,577,111"/>
+<area shape="rect" id="node17" href="$class_nodal_load.html" title="NodalLoad" alt="" coords="657,83,743,111"/>
+<area shape="rect" id="node5" href="$class_surface_load.html" title="SurfaceLoad" alt="" coords="254,161,351,189"/>
+<area shape="rect" id="node13" href="$class_volume_load.html" title="VolumeLoad" alt="" coords="490,161,584,189"/>
+<area shape="rect" id="node7" href="$class_scalar_surface_load.html" title="ScalarSurfaceLoad" alt="" coords="5,238,139,266"/>
+<area shape="rect" id="node9" href="$class_surface_convection_load.html" title="SurfaceConvectionLoad" alt="" coords="164,238,327,266"/>
+<area shape="rect" id="node11" href="$class_surface_radiation_load.html" title="SurfaceRadiationLoad" alt="" coords="351,238,504,266"/>
+<area shape="rect" id="node15" href="$class_scalar_volume_load.html" title="ScalarVolumeLoad" alt="" coords="528,238,660,266"/>
+<area shape="rect" id="node19" href="$class_dirichlet_boundary_condition.html" title="DirichletBoundaryCondition" alt="" coords="609,161,791,189"/>
+<area shape="rect" id="node21" href="$class_nodal_point_load.html" title="NodalPointLoad" alt="" coords="815,161,931,189"/>
+</map>

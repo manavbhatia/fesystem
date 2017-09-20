@@ -1,0 +1,5 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$class_isotropic_elem_data_card.html#a64ab2c719a1bdc6e3cd66b864c369a6c" title="returns the material card for this card" alt="" coords="668,5,929,33"/>
+<area shape="rect" id="node7" href="$class_property_1_1_property_card_base.html#a69c653c5d1ea391176b1a847c3bf31f6" title="Property::PropertyCardBase::partialClearLocalParameterInitialization" alt="" coords="585,57,1013,85"/>
+<area shape="rect" id="node5" href="$class_property_1_1_property_database.html#a64051eb9beed9393559fb9358bff54c6" title="returns the material property card for this ID" alt="" coords="1061,5,1445,33"/>
+</map>

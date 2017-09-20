@@ -1,0 +1,18 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$class_radiation_element_pair.html#aeda975a49693c4717d650ebbcfc455c0" title="calculates and returns the analytic shape factor" alt="" coords="336,109,616,137"/>
+<area shape="rect" id="node19" href="$class_radiation_element_pair.html#a4e95598570357c97da61af3748c63724" title="calculates and returns the contour integration shape factor" alt="" coords="329,213,623,241"/>
+<area shape="rect" id="node32" href="$class_radiation_element_pair.html#afdcdeea5237500b0f052d7f110d1a668" title="calculates and returns the double area integration shape factor" alt="" coords="317,161,635,189"/>
+<area shape="rect" id="node40" href="$class_radiation_element_pair.html#a7364ef6efb17a95f4a5e42192edc8d9d" title="calculates and returns the shape factors using mitalas&#39; method of intgration" alt="" coords="307,57,645,85"/>
+<area shape="rect" id="node5" href="$class_radiation_element.html#ada5a7265983fb39e0ce10eebeeea8aca" title="face ID for the finite element" alt="" coords="739,57,981,85"/>
+<area shape="rect" id="node7" href="$class_radiation_element.html#a0bf19bc55f941930fc88dc744ae6e7dd" title="returns the area for this element" alt="" coords="770,109,950,137"/>
+<area shape="rect" id="node13" href="$class_radiation_element.html#ab314e67b810b03dca3a27ecc83788f9d" title="this function gets the geom elem for the radiation elem" alt="" coords="710,161,1010,189"/>
+<area shape="rect" id="node16" href="$class_radiation_element.html#ab40d8a0c29577f96165f5adf8113a15e" title="returns the surface normal for this element" alt="" coords="739,213,981,241"/>
+<area shape="rect" id="node9" href="$class_radiation_element.html#a6d2ab9caa8a639051ddcff42e2a8967f" title="init this object" alt="" coords="1075,187,1226,215"/>
+<area shape="rect" id="node11" href="$class_radiation_element.html#af283e728f86eea3d9dcdc15e4a513999" title="method to init the local radiation element in its own coordinates" alt="" coords="1275,187,1563,215"/>
+<area shape="rect" id="node21" href="$_contour_integration_8h.html#a30908586f46b5340e5287573d1ad50d4" title="EdgeFactor" alt="" coords="815,317,905,345"/>
+<area shape="rect" id="node23" href="$_contour_integration_8h.html#ad84e65074db2b5ea6d44efce76c3a679" title="F1" alt="" coords="1131,265,1170,293"/>
+<area shape="rect" id="node25" href="$_contour_integration_8h.html#acbcd2ccad2ab5d4231a258dcb2a81f2a" title="F2" alt="" coords="1131,317,1170,345"/>
+<area shape="rect" id="node27" href="$_contour_integration_8h.html#ae6f7aa8b9240a7cc1092283a5cf61f75" title="F3" alt="" coords="1131,369,1170,397"/>
+<area shape="rect" id="node35" href="$class_radiation_element.html#a7e94cd8e52f1c0744a35a8d0c99ad637" title="returns the local radiation element" alt="" coords="694,265,1026,293"/>
+<area shape="rect" id="node44" href="$_mitalas_integration_8h.html#a9ef658341de25246820d0aaf0771337e" title="MitalasEdgeFactor" alt="" coords="794,5,926,33"/>
+</map>

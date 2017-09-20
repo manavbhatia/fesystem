@@ -1,0 +1,1105 @@
+// $Id: AnalysisDisciplineBase.C,v 1.13.4.9 2008-06-03 05:19:32 manav Exp $
+
+// C++ includes
+
+
+// FESystem includes
+#include "Discipline/AnalysisDisciplineBase.h"
+#include "Discipline/DisciplineInfo.h"
+#include "FESystem/AnalysisCase.h"
+#include "AnalysisDriver/AnalysisDriver.h"
+#include "AnalysisDriver/TransientAnalysisDriver.h"
+#include "Mesh/MeshList.h"
+#include "Mesh/FEMeshData.h"
+#include "PostProcess/PostProcessQtyDatabase.h"
+#include "Utilities/Log.h"
+#include "Properties/PropertyDatabase.h"
+#include "Properties/PropertyCardParameter.h"
+#include "DesignData/DesignDatabase.h"
+#include "Utilities/TimeLogs.h"
+#include "Loads/LoadDatabase.h"
+#include "Loads/LoadCombination.h"
+#include "Loads/LoadDataInfo.h"
+#include "Utilities/ParallelUtility.h"
+
+// libMesh includes
+#include "numerics/sparse_matrix.h"
+#include "numerics/numeric_vector.h"
+#include "numerics/dense_matrix.h"
+#include "numerics/dense_vector.h"
+
+
+Discipline::AnalysisDisciplineBase::AnalysisDisciplineBase
+(FESystem::FESystemController& controller,
+ const Discipline::DisciplineInfo& info):
+fesystem_controller(controller),
+discipline_info(info),
+temperature_dependent_property(info.checkLocalParameterDependence(Property::TEMPERATURE::num())),
+discipline_enum_ID(info.getDisciplineEnumID()),
+analysis_type_enum_ID(info.getAnalysisTypeEnumID()),
+solution_base(NULL),
+analysis_driver(NULL),
+mesh_ID(info.getMeshID()),
+mesh(NULL),
+mesh_data(NULL),
+dof_map(NULL),
+dummy_element_set(NULL)
+{
+  this->mesh = this->fesystem_controller.mesh_list->getMeshFromID(this->mesh_ID);
+  this->mesh_data = this->fesystem_controller.mesh_list->getMeshDataFromID(this->mesh_ID);
+  this->dof_map = this->fesystem_controller.mesh_list->getDofMapFromID(this->mesh_ID);
+  this->dummy_element_set = this->fesystem_controller.mesh_list->getDummyElemSetFromID(this->mesh_ID);
+}
+
+
+
+
+
+
+
+Discipline::AnalysisDisciplineBase::~AnalysisDisciplineBase()
+{
+  this->clear();
+  
+  // iterate over the variables, and delete them
+  std::vector<System::Variable*>::iterator it, end;
+  it = this->_variables.begin();
+  end = this->_variables.end();
+  for ( ; it != end; it++)
+    delete *it;
+}
+
+
+
+unsigned int
+Discipline::AnalysisDisciplineBase::nDofs() const
+{
+  Assert(this->dof_map != NULL, ExcInternalError());
+  return this->dof_map->n_dofs();
+}
+
+
+/// @returns the number of dofs on the current processor
+unsigned int 
+Discipline::AnalysisDisciplineBase::nLocalDofs() const
+{
+  Assert(this->dof_map != NULL, ExcInternalError());
+  return this->dof_map->n_dofs_on_processor(FESystem::local_processor);
+}
+
+
+
+void 
+Discipline::AnalysisDisciplineBase::addAnalysisVariablesAndInitialize()
+{
+
+  this->fesystem_controller.performance_logging->setEvent
+  ("AnalysisDisciplineBase::addAnalysisVariablesAndInitialize()",
+   "AnalysisDiscipline");
+  
+  // set n_systems for each DofObject (nodes and  elems)
+  this->setNSystemsForDOFObjects();
+  
+  // add a variable. This will add the user defined variables, which will be specific to 
+  // to each discipline of analysis
+  this->addAnalysisVariables();
+	
+  // ask dof_map to distribute dofs and calculate the sparsity pattern
+  this->dof_map->distribute_dofs(*(this->mesh));
+
+  // for AMR
+  this->dof_map->create_dof_constraints(*(this->mesh));
+  
+  // for AMR
+  //this->dof_map->process_recursive_constraints();
+  
+  this->fesystem_controller.performance_logging->setEvent
+    ("AnalysisDisciplineBase::computing_sparsity",
+     "AnalysisDiscipline");
+  
+  this->dof_map->compute_sparsity(*(this->mesh));
+  
+  this->fesystem_controller.performance_logging->unsetEvent
+    ("AnalysisDisciplineBase::computing_sparsity",
+     "AnalysisDiscipline");
+  
+  this->fesystem_controller.performance_logging->unsetEvent
+    ("AnalysisDisciplineBase::addAnalysisVariablesAndInitialize()",
+     "AnalysisDiscipline"); 
+}
+
+
+
+void 
+Discipline::AnalysisDisciplineBase::initMatrix(SparseMatrix<double>& mat)
+{
+  Assert(this->analysis_driver != NULL, ExcEmptyObject());
+	
+  mat.attach_dof_map(*(this->dof_map));
+  mat.init();
+}
+
+
+
+void 
+Discipline::AnalysisDisciplineBase::initVector(NumericVector<double>& vec)
+{
+  Assert(this->analysis_driver != NULL, ExcEmptyObject());
+  vec.init(this->nDofs(), this->nLocalDofs());
+}
+
+
+
+void 
+Discipline::AnalysisDisciplineBase::attachAnalysisDriver
+(Driver::AnalysisDriver *driver)
+{
+  Assert(driver != NULL, ExcEmptyObject());
+  this->analysis_driver = driver;
+}
+
+
+
+const Solution::SolutionBase&
+Discipline::AnalysisDisciplineBase::getSolution() const
+{
+  Assert(this->solution_base != NULL, ExcInternalError());
+  return *(this->solution_base);
+}
+
+
+
+
+
+void
+Discipline::AnalysisDisciplineBase::clear()
+{
+  // clear the pointer to the analysis driver, since a new analysis driver might 
+  // be attached at a later point
+  this->solution_base = NULL;
+  this->analysis_driver = NULL;
+  
+  // also, delete the fesystem elements in the discipline
+  Discipline::AnalysisDisciplineBase::FESystemElemMap::iterator it, end;
+  it = this->fesystem_elem_map.begin();
+  end = this->fesystem_elem_map.end();
+  
+  for ( ; it != end; it++)
+    {
+    delete it->second;
+    it->second = NULL;
+    }
+  
+  this->fesystem_elem_map.clear();
+  this->loaded_solution.clear();
+}
+
+
+
+
+
+
+void
+Discipline::AnalysisDisciplineBase::addVariable(const std::string& var,
+                                                const FEType& type)
+{
+  System::Variable* variable = new System::Variable(var, this->_variables.size(), type);
+  
+  // Add the variable to the list
+  this->_variables.push_back (variable);
+	
+  // Add the variable to the _dof_map
+  this->dof_map->add_variable (*variable);
+}
+
+
+
+
+
+
+void
+Discipline::AnalysisDisciplineBase::setNSystemsForDOFObjects()
+{
+  // remove the remote elements elements
+  if (FESystem::total_processors > 1)
+    this->mesh->delete_remote_elements();
+  
+  // set the number of systems for all nodes to 1
+  MeshBase::node_iterator       node_it  = this->mesh->nodes_begin();
+  const MeshBase::node_iterator node_end = this->mesh->nodes_end();
+	
+  for ( ; node_it != node_end; ++node_it)
+    (*node_it)->set_n_systems(1);
+  
+	
+  // set the number of systems for all elements to 1
+  MeshBase::element_iterator       elem_it  = this->mesh->elements_begin();
+  const MeshBase::element_iterator elem_end = this->mesh->elements_end();
+  
+  for ( ; elem_it != elem_end; ++elem_it)
+    (*elem_it)->set_n_systems(1);
+}
+
+
+
+
+void 
+Discipline::AnalysisDisciplineBase::fillQuantity
+(std::map<unsigned int, double>& real_map, 
+ std::map<unsigned int, SparseMatrix<double>* >& matrix_map, 
+ std::map<unsigned int, NumericVector<double>* >& vector_map)
+{
+  // iterate over all quantities, and prepare a list of which quantities
+  // need to be calculated and saved. This has to be done for both 
+  // the matrix and the vector quantities
+  std::map<unsigned int, double> calculate_real;
+  std::map<unsigned int, SparseMatrix<double>* > calculate_matrix;
+  std::map<unsigned int, NumericVector<double>* > calculate_vector;
+  
+  bool sensitivity = false;
+
+  // check if the quantity needs to be recalculated
+  std::map<unsigned int, double>::const_iterator real_it, real_end;
+  real_it = real_map.begin();
+  real_end = real_map.end();
+  
+  for (; real_it != real_end; real_it++)
+    {
+      switch (real_it->first)
+      {
+        case MODEL_MASS_ENUM_ID: 
+          calculate_real[real_it->first] = 0.0;
+          break;
+
+        case MODEL_MASS_SENSITIVITY_ENUM_ID: 
+        {
+          calculate_real[real_it->first] = 0.0;
+          sensitivity = true;
+        }
+          break;
+          
+        default:
+          ExcInternalError();
+      }
+    }
+  
+  
+  std::map<unsigned int, SparseMatrix<double>* >::const_iterator mat_it, mat_end;
+  mat_it = matrix_map.begin();
+  mat_end = matrix_map.end();
+  
+  
+  // check if the quantity needs to be recalculated
+  for ( ; mat_it != mat_end; mat_it++)
+    {
+    switch (mat_it->first)
+      {
+      case TRANSIENT_C2_MATRIX_ENUM_ID:
+        {
+          if (this->calculateTransientMatrix(2))
+            calculate_matrix[mat_it->first] = mat_it->second;
+        }
+        break;
+        
+      case TRANSIENT_C2_MATRIX_SENSITIVITY_ENUM_ID:
+        {
+          if (this->calculateTransientMatrix(2, true))
+            calculate_matrix[mat_it->first] = mat_it->second;
+          sensitivity = true;   
+        }
+        break;
+
+      case TRANSIENT_C1_MATRIX_ENUM_ID:
+        {
+          if (this->calculateTransientMatrix(1))
+            calculate_matrix[mat_it->first] = mat_it->second;
+        }
+        break;
+        
+      case TRANSIENT_C1_MATRIX_SENSITIVITY_ENUM_ID:
+        {
+          if (this->calculateTransientMatrix(1, true))
+            calculate_matrix[mat_it->first] = mat_it->second;
+          sensitivity = true;   
+        }
+        break;
+        
+        
+      case SYSTEM_MATRIX_ENUM_ID:
+        {
+          if (this->calculateK())
+            calculate_matrix[mat_it->first] = mat_it->second;
+        }
+        break;
+        
+      case SYSTEM_MATRIX_SENSITIVITY_ENUM_ID:
+        {
+          if (this->calculateK(true))
+            calculate_matrix[mat_it->first] = mat_it->second;
+          sensitivity = true;   
+        }
+        break;
+        
+      case JACOBIAN_MATRIX_ENUM_ID:
+        {
+          if (this->calculateJac())
+            calculate_matrix[mat_it->first] = mat_it->second;
+        }
+        break;
+        
+      case EIGENPROBLEM_A_MATRIX_ENUM_ID:
+        {
+          if (this->calculateEigenProblemAMatrix())
+            calculate_matrix[mat_it->first] = mat_it->second;
+        }
+        break;
+        
+      case EIGENPROBLEM_A_MATRIX_SENSITIVITY_ENUM_ID:
+        {
+          if (this->calculateEigenProblemAMatrix(true))
+            calculate_matrix[mat_it->first] = mat_it->second;
+          sensitivity = true;   
+        }
+        break;
+        
+      case EIGENPROBLEM_B_MATRIX_ENUM_ID:
+        {
+          if (this->calculateEigenProblemBMatrix())
+            calculate_matrix[mat_it->first] = mat_it->second;
+        }
+        break;
+        
+      case EIGENPROBLEM_B_MATRIX_SENSITIVITY_ENUM_ID:
+        {
+          if (this->calculateEigenProblemAMatrix(true))
+            calculate_matrix[mat_it->first] = mat_it->second;
+          sensitivity = true;   
+        }
+        break;
+        
+      default:
+        abort();
+        break;
+      }
+    }
+  
+  // now check the vectors
+  std::map<unsigned int, NumericVector<double>* >::const_iterator vec_it, vec_end;
+  vec_it = vector_map.begin();
+  vec_end = vector_map.end();
+  
+  // check if the quantity needs to be recalculated
+  for ( ; vec_it != vec_end; vec_it++)
+    {
+    switch (vec_it->first)
+      {
+      case FORCE_VECTOR_ENUM_ID:
+        {
+          if (this->calculateF())
+            calculate_vector[vec_it->first] = vec_it->second;
+        }
+        break;
+        
+      case FORCE_VECTOR_SENSITIVITY_ENUM_ID:
+        {
+          if (this->calculateF(true))
+            calculate_vector[vec_it->first] = vec_it->second;
+          sensitivity = true;   
+        }
+        break;
+        
+      default:
+        abort();
+        break;
+      }
+    }
+  
+  
+  // now calculate the quantities
+  this->calculateGlobalQty(calculate_real, calculate_matrix, calculate_vector, sensitivity);
+  this->performAdditionalOperationsOnGlobalQuantities(calculate_matrix, 
+                                                      calculate_vector);
+
+  
+  // now, copy the values to the map
+  std::map<unsigned int, double>::iterator real_it_w, real_end_w;
+  real_it_w = real_map.begin();
+  real_end_w = real_map.end();
+  
+  for (; real_it_w != real_end_w; real_it_w++)
+    real_it_w->second = calculate_real[real_it_w->first];
+  
+  
+  // next, save the quantities that were calculated, and others will be 
+  // retrieved from the database
+  mat_it = matrix_map.begin();
+  for ( ; mat_it != mat_end; mat_it++)
+    {
+    std::auto_ptr<FESystemDatabase::DataInfoBase> 
+    data_info(this->getDataInfoForQty(mat_it->first).release());
+    mat_it->second->close();
+      
+    if (calculate_matrix.count(mat_it->first) == 0)
+      // retrieve solution
+      this->fesystem_controller.global_data_storage->fillMatrix
+      (*data_info, *(mat_it->second));
+    else
+      // store solution
+      this->fesystem_controller.global_data_storage->storeMatrix
+      (*data_info, *(mat_it->second));
+    }
+  
+  vec_it = vector_map.begin();
+  for ( ; vec_it != vec_end; vec_it++)
+    {
+    std::auto_ptr<FESystemDatabase::DataInfoBase> 
+    data_info(this->getDataInfoForQty(vec_it->first).release());
+    vec_it->second->close();
+    
+    switch (calculate_vector.count(vec_it->first))
+      {
+      case 0:
+        // retrieve solution
+        this->fesystem_controller.global_data_storage->fillVector
+        (*data_info, *(vec_it->second));
+        break;
+        
+      case 1:
+        // store solution
+        this->fesystem_controller.global_data_storage->storeVector
+        (*data_info, *(vec_it->second));
+        break;
+        
+      default:
+        // cannot get here
+        Assert(false, ExcInternalError());
+      }
+    }
+}
+
+
+
+
+
+
+void 
+Discipline::AnalysisDisciplineBase::calculateGlobalQty
+(std::map<unsigned int, double >& global_real_data_map,
+ std::map<unsigned int, SparseMatrix<double>* >& global_matrix_data_map,
+ std::map<unsigned int, NumericVector<double>* >& global_vector_data_map,
+ bool sensitivity)
+{
+  this->fesystem_controller.performance_logging->setEvent
+  ("AnalysisDisciplineBase::calculateGlobalQty()",
+   "AnalysisDiscipline");
+
+  std::map<unsigned int, double> elem_real_data_map;
+  std::map<unsigned int, DenseMatrix<double> > elem_matrix_data_map;
+  std::map<unsigned int, DenseVector<double> > elem_vector_data_map;
+
+  // create the map of matrices and vectors for the quantities to be calculated
+  {
+    std::map<unsigned int, double>::iterator it, end;
+    it = global_real_data_map.begin();
+    end = global_real_data_map.end();
+    
+    for (; it != end; it++)
+      {
+        // zero the entries
+        it->second = 0.0;
+        elem_real_data_map.insert(std::map<unsigned int, double>::value_type
+                                  (it->first, 0.0));
+      }
+  }   
+
+  {
+    std::map<unsigned int, SparseMatrix<double>*>::const_iterator it, end;
+    it = global_matrix_data_map.begin();
+    end = global_matrix_data_map.end();
+    
+    for (; it != end; it++)
+      {
+      // zero the entries
+      it->second->zero();
+      elem_matrix_data_map.insert(std::map<unsigned int, DenseMatrix<double> >::value_type
+                                  (it->first, DenseMatrix<double>()));
+      }
+  }   
+  
+  {
+    std::map<unsigned int, NumericVector<double>*>::const_iterator it, end;
+    it = global_vector_data_map.begin();
+    end = global_vector_data_map.end();
+    
+    for (; it != end; it++)
+      {
+      it->second->zero();
+      elem_vector_data_map.insert(std::map<unsigned int, DenseVector<double> >::value_type
+                                  (it->first, DenseVector<double>()));
+      }
+  }
+  
+  
+  // if one of the quantities is a sensitivity quantitiy, then get the current 
+  // sensitivity parameter from the analysis driver
+  const DesignData::DesignParameter* design_param = NULL;
+  const MeshDS::FEMeshData* perturbed_mesh_data = NULL;
+  double perturbation = 0.0;
+  unsigned int des_param_ID = FESystemNumbers::InvalidID;
+  if (sensitivity)
+    {
+    design_param = &(this->analysis_driver->getCurrentDesignParameter());
+    des_param_ID = design_param->getID();
+    if (design_param->getParameterTypeEnumID() == DesignData::SHAPE_PARAMETER::num())
+      {
+      perturbation = design_param->getPerturbationStepSize();
+      unsigned int perturbed_mesh_ID = 
+        dynamic_cast<const DesignData::ShapeParameter*>(design_param)->
+        getPerturbedMeshID(this->getDisciplineEnumID());
+      perturbed_mesh_data = 
+        this->fesystem_controller.mesh_list->getMeshDataFromID(perturbed_mesh_ID);
+      }
+    }
+  
+  unsigned int elemID = 0, elem_kind_enum_ID = 0;
+  unsigned int property_card_ID = 0;
+  ElemDataCard* property_card = NULL;
+  FESystemElem::FESystemElemBase  *fesys_elem = NULL;
+  Elem* elem = NULL, *perturbed_elem = NULL;
+  
+  
+  // loop over all the elements in the mesh.
+  MeshBase::const_element_iterator           el  = mesh->active_local_elements_begin();
+  const MeshBase::const_element_iterator end_el  = mesh->active_local_elements_end();
+	
+  std::set<Elem*>::iterator elem_it, elem_end;
+  elem_end = this->dummy_element_set->end();
+  
+  for ( ; el != end_el ; ++el)
+    {
+    elem = const_cast<Elem*>(*el);
+    
+    // if this elem is not in the dummy elem set, process it, else leave it
+    if (this->dummy_element_set->count(elem)>0)
+      continue;
+    
+    elemID = mesh_data->getForeignIDFromElem(elem);
+    elem_kind_enum_ID = this->mesh_data->getElemKindEnumID(elem);
+    
+    // get the property card for this element
+    property_card_ID = this->mesh_data->getElemPropertyID(elem);
+    property_card = 
+      &(this->fesystem_controller.property_database->getElemDataCardFromID(property_card_ID));
+    
+    // create the element object
+    this->getFESystemElem(elem_kind_enum_ID, fesys_elem);
+    
+    fesys_elem->reinit(elemID, elem, property_card);
+    
+    // initialize for sensitivity if needed
+    if (sensitivity)
+      {
+      switch (design_param->getParameterTypeEnumID())
+        {
+        case PROPERTY_PARAMETER_ENUM_ID:
+          fesys_elem->reinitForPropertySensitivity(des_param_ID);
+          break;
+          
+        case SHAPE_PARAMETER_ENUM_ID:
+          {
+            perturbed_elem = const_cast<Elem*>(perturbed_mesh_data->getElemFromForeignID(elemID));
+            fesys_elem->reinitForShapeSensitivity(des_param_ID, perturbed_elem, perturbation);
+          }
+          break;
+          
+        default:
+          // cannot get here
+          Assert(false, ExcInternalError());
+        }
+      }
+    
+    // resize the matrices for this element
+    this->resizeElemMatricesForElem(fesys_elem, elem_matrix_data_map, elem_vector_data_map);
+    
+    // get the element quantities corresponding to the global 
+    // qty in the vector
+    this->getElemQty(fesys_elem, elem_real_data_map,
+                     elem_matrix_data_map, elem_vector_data_map, 
+                     sensitivity, des_param_ID);
+    
+    // add the element quantities in the vector
+    this->addElemQtyToGlobalData(elem,
+                                 global_real_data_map, elem_real_data_map,
+                                 global_matrix_data_map, elem_matrix_data_map,
+                                 global_vector_data_map, elem_vector_data_map);
+    
+    // now that the element has been used, just clear its initialization
+    fesys_elem->clearInitialization();
+    }
+  this->fesystem_controller.performance_logging->unsetEvent
+    ("AnalysisDisciplineBase::calculateGlobalQty()",
+     "AnalysisDiscipline");
+}
+
+
+
+
+void
+Discipline::AnalysisDisciplineBase::resizeElemMatricesForElem
+(FESystemElem::FESystemElemBase* fesys_elem,
+ std::map<unsigned int, DenseMatrix<double> >& elem_matrix_data_map,
+ std::map<unsigned int, DenseVector<double> >& elem_vector_data_map)
+{
+  static unsigned int n_dofs;
+  n_dofs = fesys_elem->getNDofs();
+  
+  static std::map<unsigned int , DenseMatrix<double> >::iterator mat_it, mat_end;
+  static std::map<unsigned int , DenseVector<double> >::iterator vec_it, vec_end;
+  
+  mat_it = elem_matrix_data_map.begin();
+  mat_end = elem_matrix_data_map.end();
+  
+  vec_it = elem_vector_data_map.begin();
+  vec_end = elem_vector_data_map.end();
+  
+  for ( ; mat_it != mat_end; mat_it++)
+    {
+    // it is assumed that checking only one dimension is enough.
+    switch (mat_it->second.m() - n_dofs)
+      {
+      case 0:
+        {
+          // keep going
+        }
+        break;
+        
+      default:
+        mat_it->second.resize(n_dofs, n_dofs);
+      }
+    }
+  
+  for ( ; vec_it != vec_end; vec_it++)
+    {
+    switch (vec_it->second.size() - n_dofs)
+      {
+      case 0:
+        {
+          // keep going
+        }
+        break;
+        
+      default:
+        vec_it->second.resize(n_dofs);
+      }
+    }
+}
+
+
+
+void 
+Discipline::AnalysisDisciplineBase::calculatePostProcessQty(const std::vector<unsigned int>& load_cases)
+{
+  // these are temporary data structures that will be used below
+  FESystemElem::FESystemElemBase *fesys_elem = NULL;
+	
+  std::auto_ptr<ElemPostProcessQty> elem_data(NULL);
+  PostProcessQtyDatabase& database =
+    *(this->fesystem_controller.post_process_qty_database.get());
+  
+  // the data will be calculated for all load cases, and DVs
+  //  const std::vector<unsigned int>& load_cases = 
+  //    this->fesystem_controller.analysis_case->getLoadCaseIDs();
+  std::auto_ptr<std::vector<DesignData::DesignParameter*> > dv_vector = 
+    this->fesystem_controller.design_database->getParameters();
+  
+  unsigned int property_card_ID = 0;
+  ElemDataCard* property_card = NULL;
+  
+  unsigned int elemID = 0, elem_kind_enum_ID = 0;
+  
+  // loop over all the elements in the mesh.
+  MeshBase::const_element_iterator           el  = mesh->elements_begin();
+  const MeshBase::const_element_iterator end_el  = mesh->elements_end();
+	
+  std::set<Elem*>::iterator elem_it, elem_end;
+  elem_end = this->dummy_element_set->end();
+  
+  for ( ; el != end_el ; ++el)
+    {
+    Elem* elem = const_cast<Elem*>(*el);
+    
+    // if this elem is not in the dummy elem set, process it, else leave it
+    elem_it = this->dummy_element_set->find(elem);
+    
+    if (elem_it != elem_end)
+      continue;
+    
+    elemID = mesh_data->getForeignIDFromElem(elem);
+    elem_kind_enum_ID = this->mesh_data->getElemKindEnumID(elem);
+    
+    // get the property card for this element
+    property_card_ID = this->mesh_data->getElemPropertyID(elem);
+    property_card = 
+      &(this->fesystem_controller.property_database->getElemDataCardFromID(property_card_ID));
+				
+    // create the element object
+    this->getFESystemElem(elem_kind_enum_ID, fesys_elem);
+		
+    fesys_elem->reinit(elemID, elem, property_card);
+		
+    elem_data.reset(fesys_elem->getElementPostProcessQty(load_cases, *(dv_vector.get())).release());
+    
+    database.addElementPostProcessQty(this->getDisciplineEnumID(),
+                                      elemID, elem_data);
+    // now that the element has been used, just clear its initialization
+    fesys_elem->clearInitialization();
+    }
+}
+
+
+
+Elem*
+Discipline::AnalysisDisciplineBase::getPerturbedElemForShapeParameter
+(const unsigned int elem_ID, DesignData::DesignParameter* param)
+{
+  // get mesh ID from the perturbed DV
+  unsigned int perturbed_mesh_ID = 
+  (dynamic_cast<DesignData::ShapeParameter*>(param))->getPerturbedMeshID
+  (this->getDisciplineEnumID());
+	
+  // get the perturbed mesh data
+  MeshDS::FEMeshData* perturbed_mesh_data = 
+  this->fesystem_controller.mesh_list->getMeshDataFromID(perturbed_mesh_ID);
+	
+  // from this element ID, get the perturbed elem 
+  return const_cast<Elem*>(perturbed_mesh_data->getElemFromForeignID(elem_ID));
+}
+
+
+
+
+void 
+Discipline::AnalysisDisciplineBase::getElemLoads
+(const unsigned int elem_ID,  const Elem* elem,
+ const unsigned int load_case, 
+ const bool transient, const double time, 
+ const bool sensitivity, const unsigned int DV_ID,
+ const std::map<unsigned int, unsigned int>& volume_loads,
+ const std::map<unsigned int, unsigned int>& surface_loads,
+ const std::map<unsigned int, std::pair<unsigned int, unsigned int> >& nodal_loads,
+ std::map<unsigned int, const Loads::VolumeLoadCombination*>& volume_load_map,
+ std::map<unsigned int, std::map<unsigned int, const Loads::NodalLoadCombination*> >& nodal_load_map,
+ std::map<unsigned int, std::map<unsigned int, const Loads::SurfaceLoadCombination*> >& surface_load_map)
+{
+    Assert(elem != NULL, ExcInternalError());
+    
+    // create a map of quantities that will be used in the load processing
+    // this is being done to avoid creating and deleting objects for each element during the processing
+    static FESystemUtility::AutoPtrVector<Loads::LoadCombinationBase> local_loads;
+    
+    static std::map<unsigned int, Loads::VolumeLoadCombination*> local_volume_load_map;
+    static std::map<unsigned int, Loads::VolumeLoadCombination*> local_volume_load_sens_map;
+    static std::map<unsigned int, std::map<unsigned int, Loads::NodalLoadCombination*> > local_nodal_load_map;
+    static std::map<unsigned int, std::map<unsigned int, Loads::NodalLoadCombination*> > local_nodal_load_sens_map;
+    static std::map<unsigned int, std::map<unsigned int, Loads::SurfaceLoadCombination*> > local_surface_load_map;
+    static std::map<unsigned int, std::map<unsigned int, Loads::SurfaceLoadCombination*> > local_surface_load_sens_map;
+    // these are only pointers that will be used for the appropriate map
+    static std::map<unsigned int, Loads::VolumeLoadCombination*>* local_volume_load_map_ptr;
+    static std::map<unsigned int, std::map<unsigned int, Loads::NodalLoadCombination*> >* local_nodal_load_map_ptr;
+    static std::map<unsigned int, std::map<unsigned int, Loads::SurfaceLoadCombination*> >* local_surface_load_map_ptr;
+
+    if (sensitivity)
+      {
+          local_volume_load_map_ptr = &local_volume_load_sens_map;
+          local_nodal_load_map_ptr = &local_nodal_load_sens_map;
+          local_surface_load_map_ptr = &local_surface_load_sens_map;
+      }
+    else
+      {
+          local_volume_load_map_ptr = &local_volume_load_map;
+          local_nodal_load_map_ptr = &local_nodal_load_map;
+          local_surface_load_map_ptr = &local_surface_load_map;
+      }
+    
+    
+    // these are the iterators for the loads
+    static std::map<unsigned int, Loads::VolumeLoadCombination*>::iterator 
+    volume_combo_it, volume_combo_end;
+    static std::map<unsigned int, std::map<unsigned int, Loads::SurfaceLoadCombination*> >::iterator 
+    surface_combo_it, surface_combo_end;
+    static std::map<unsigned int, Loads::SurfaceLoadCombination*>::iterator 
+    local_surface_combo_it, local_surface_combo_end;
+    static std::map<unsigned int, std::map<unsigned int, Loads::NodalLoadCombination*> >::iterator 
+    nodal_combo_it, nodal_combo_end;
+    static std::map<unsigned int, Loads::NodalLoadCombination*>::iterator
+    local_nodal_combo_it, local_nodal_combo_end;
+    
+    // these are the iterators for the elem node or side numbers for the different element kinds
+    static std::map<unsigned int, std::map<unsigned int, const Loads::SurfaceLoadCombination*> >::iterator 
+    elem_surface_map_it, elem_surface_map_end;
+    static std::map<unsigned int, std::map<unsigned int, const Loads::NodalLoadCombination*> >::iterator 
+    elem_nodal_map_it, elem_nodal_map_end;
+    
+    // this is the vector of data info that will be used to fetch loads
+    static FESystemUtility::AutoPtrVector<Loads::LoadDataInfoBase> local_load_info;
+    static std::map<unsigned int, Loads::VolumeLoadDataInfo*> local_volume_load_info_map;
+    static std::map<unsigned int, Loads::NodalLoadDataInfo*> local_nodal_load_info_map;
+    static std::map<unsigned int, Loads::SurfaceLoadDataInfo*> local_surface_load_info_map;
+    static std::map<unsigned int, Loads::VolumeLoadDataInfo*>::iterator volume_info_it;
+    static std::map<unsigned int, Loads::NodalLoadDataInfo*>::iterator nodal_info_it;
+    static std::map<unsigned int, Loads::SurfaceLoadDataInfo*>::iterator surface_info_it;
+    
+    // the maps should be cleared before working with the loads
+    volume_load_map.clear();
+    nodal_load_map.clear();
+    surface_load_map.clear();
+    
+    // iterate over the loads and get the loads from the load database
+    static std::map<unsigned int, unsigned int>::const_iterator volume_it, volume_end;
+    volume_it = volume_loads.begin();
+    volume_end = volume_loads.end();
+    
+    static std::map<unsigned int, std::pair<unsigned int, unsigned int> >::const_iterator nodal_it, nodal_end;
+    nodal_it = nodal_loads.begin();
+    nodal_end = nodal_loads.end();
+    
+    static std::map<unsigned int, unsigned int>::const_iterator surface_it, surface_end;
+    surface_it = surface_loads.begin();
+    surface_end = surface_loads.end();
+    
+    bool insert_success = false;
+    
+    // first the volume loads
+    // get the loads from the load database
+    for ( ; volume_it != volume_end; volume_it++)
+      {
+          volume_info_it = local_volume_load_info_map.find(volume_it->first);
+          
+          // init the load data info for the load
+          if (volume_info_it == local_volume_load_info_map.end())
+            {
+                std::auto_ptr<Loads::VolumeLoadDataInfo>
+                info(Loads::createVolumeLoadDataInfo(volume_it->second).release());
+                // add this to the vector and to the map
+                volume_info_it = local_volume_load_info_map.insert
+                (std::map<unsigned int, Loads::VolumeLoadDataInfo*>::value_type
+                 (volume_it->first, info.get())).first;
+                local_load_info.push_back(info.release());
+            }
+          
+          Loads::VolumeLoadDataInfo* info = volume_info_it->second;
+          
+          info->clear();
+          info->setLoadCaseID(load_case);
+          info->setElemID(elem_ID);
+          info->setLoadNameEnumID(volume_it->first);
+          info->setLoadClassEnumID(volume_it->second);
+          if (transient)
+              info->setTime(time);
+          if (sensitivity)
+              info->setDVID(DV_ID);
+          
+          // now get the load combination data object
+          volume_combo_it = local_volume_load_map_ptr->find(volume_it->first);
+          
+          if (volume_combo_it == local_volume_load_map_ptr->end())
+            {
+                std::auto_ptr<Loads::VolumeLoadCombination> 
+                load_combo(Loads::createVolumeLoadCombination(volume_it->first).release());
+                // add this to the vector and to the map
+                volume_combo_it = local_volume_load_map_ptr->insert
+                (std::map<unsigned int, Loads::VolumeLoadCombination*>::value_type
+                 (volume_it->first, load_combo.get())).first;
+                local_loads.push_back(load_combo.release());
+            }
+          Loads::VolumeLoadCombination* load_combo = volume_combo_it->second;
+          load_combo->clear();
+          
+          // now, get the load
+          this->fesystem_controller.load_database->getLoadCombination(*info, *load_combo);
+          
+          // finally, if a load was found, insert this into the return volume load map
+          if (load_combo->nLoads() > 0)
+            {
+                insert_success = volume_load_map.insert
+                (std::map<unsigned int, const Loads::VolumeLoadCombination*>::value_type
+                 (volume_it->first, load_combo)).second;
+                Assert(insert_success, ExcInternalError());
+            }
+      }
+    
+    // get the loads from the load database.
+    // for every load, iterate over the number of surfaces
+    for ( ; surface_it != surface_end; surface_it++)
+      {
+          surface_info_it = local_surface_load_info_map.find(surface_it->first);
+          
+          // init the load data info for the load
+          if (surface_info_it == local_surface_load_info_map.end())
+            {
+                std::auto_ptr<Loads::SurfaceLoadDataInfo>
+                info(Loads::createSurfaceLoadDataInfo(surface_it->second).release());
+                
+                // add this to the vector and to the map
+                surface_info_it = local_surface_load_info_map.insert
+                (std::map<unsigned int, Loads::SurfaceLoadDataInfo*>::value_type
+                 (surface_it->first, info.get())).first;
+                local_load_info.push_back(info.release());
+            }
+          Loads::SurfaceLoadDataInfo* info = surface_info_it->second;
+          
+          // now get the load combination data object
+          surface_combo_it = local_surface_load_map_ptr->find(surface_it->first);
+          
+          if (surface_combo_it == local_surface_load_map_ptr->end())
+            {
+                surface_combo_it =  local_surface_load_map_ptr->insert
+                (std::map<unsigned int, std::map<unsigned int, Loads::SurfaceLoadCombination*> >::value_type
+                 (surface_it->first, std::map<unsigned int, Loads::SurfaceLoadCombination*>())).first;
+            }
+          
+          
+          for (unsigned int i=0; i <= elem->n_sides(); i++)
+            {
+                local_surface_combo_it = surface_combo_it->second.find(i);
+                
+                if (local_surface_combo_it == surface_combo_it->second.end())
+                  {
+                      std::auto_ptr<Loads::SurfaceLoadCombination> 
+                      load_combo(Loads::createSurfaceLoadCombination(surface_it->second).release());
+                      
+                      // add this to the vector and to the map
+                      local_surface_combo_it = surface_combo_it->second.insert
+                      (std::map<unsigned int, Loads::SurfaceLoadCombination*>::value_type
+                       (i, load_combo.get())).first;
+                      local_loads.push_back(load_combo.release());
+                  }
+                
+                Loads::SurfaceLoadCombination* load_combo = local_surface_combo_it->second;
+                
+                info->clear();
+                info->setLoadCaseID(load_case);
+                info->setElemID(elem_ID);
+                info->setSurfaceID(i);
+                info->setLoadNameEnumID(surface_it->first);
+                info->setLoadClassEnumID(surface_it->second);
+                if (transient)
+                    info->setTime(time);
+                if (sensitivity)
+                    info->setDVID(DV_ID);
+                
+                load_combo->clear();
+                
+                // now, get the load
+                this->fesystem_controller.load_database->getLoadCombination(*info, *load_combo);
+                
+                // finally, if a load was found, insert this into the return volume load map
+                if (load_combo->nLoads() > 0)
+                  {
+                      elem_surface_map_it = surface_load_map.find(surface_it->first);
+                      
+                      if (elem_surface_map_it == surface_load_map.end())
+                        {
+                            elem_surface_map_it = surface_load_map.insert
+                            (std::map< unsigned int, std::map<unsigned int, const Loads::SurfaceLoadCombination*> >::value_type
+                             (surface_it->first, std::map<unsigned int, const Loads::SurfaceLoadCombination*>())).first;
+                        }
+                      
+                      insert_success = elem_surface_map_it->second.insert
+                      (std::map<unsigned int, const Loads::SurfaceLoadCombination*>::value_type
+                       (i, load_combo)).second;
+                      Assert(insert_success, ExcInternalError());
+                  }
+            }
+      }
+    
+    
+    // get the loads from the load database.
+    // for every load, iterate over the number of nodes
+    for ( ; nodal_it != nodal_end; nodal_it++)
+      {
+          nodal_info_it = local_nodal_load_info_map.find(nodal_it->first);
+          
+          // init the load data info for the load
+          if (nodal_info_it == local_nodal_load_info_map.end())
+            {
+                std::auto_ptr<Loads::NodalLoadDataInfo>
+                info(Loads::createNodalLoadDataInfo(nodal_it->second.first).release());
+                
+                // add this to the vector and to the map
+                nodal_info_it = local_nodal_load_info_map.insert
+                (std::map<unsigned int, Loads::NodalLoadDataInfo*>::value_type
+                 (nodal_it->first, info.get())).first;
+                local_load_info.push_back(info.release());
+            }
+          Loads::NodalLoadDataInfo* info = nodal_info_it->second;
+          
+          // now get the load combination data object
+          nodal_combo_it = local_nodal_load_map_ptr->find(nodal_it->first);
+          
+          if (nodal_combo_it == local_nodal_load_map_ptr->end())
+            {
+                nodal_combo_it =  local_nodal_load_map_ptr->insert
+                (std::map<unsigned int, std::map<unsigned int, Loads::NodalLoadCombination*> >::value_type
+                 (nodal_it->first, std::map<unsigned int, Loads::NodalLoadCombination*>())).first;
+            }
+          
+          
+          unsigned int node_id = 0;
+          for (unsigned int i=0; i < elem->n_nodes(); i++)
+            {
+                local_nodal_combo_it = nodal_combo_it->second.find(i);
+                
+                if (local_nodal_combo_it == nodal_combo_it->second.end())
+                  {
+                      std::auto_ptr<Loads::NodalLoadCombination> 
+                      load_combo(Loads::createNodalLoadCombination(nodal_it->second.first).release());
+                      
+                      // add this to the vector and to the map
+                      local_nodal_combo_it = nodal_combo_it->second.insert
+                      (std::map<unsigned int, Loads::NodalLoadCombination*>::value_type
+                       (i, load_combo.get())).first;
+                      local_loads.push_back(load_combo.release());
+                  }
+                
+                Loads::NodalLoadCombination* load_combo = local_nodal_combo_it->second;
+                
+                node_id = this->mesh_data->getForeignIDFromNode(elem->get_node(i));
+                
+                info->clear();
+                info->setLoadCaseID(load_case);
+                info->setNodeID(node_id);
+                info->setLoadNameEnumID(nodal_it->first);
+                info->setLoadClassEnumID(nodal_it->second.first);
+                info->setNDofs(nodal_it->second.second);
+                if (transient)
+                    info->setTime(time);
+                if (sensitivity)
+                    info->setDVID(DV_ID);
+                
+                load_combo->clear();
+                
+                // now, get the load
+                this->fesystem_controller.load_database->getLoadCombination(*info, *load_combo);
+                
+                // finally, if a load was found, insert this into the return volume load map
+                if (load_combo->nLoads() > 0)
+                  {
+                      elem_nodal_map_it = nodal_load_map.find(nodal_it->first);
+                      
+                      if (elem_nodal_map_it == nodal_load_map.end())
+                        {
+                            elem_nodal_map_it = nodal_load_map.insert
+                            (std::map< unsigned int, std::map<unsigned int, const Loads::NodalLoadCombination*> >::value_type
+                             (nodal_it->first, std::map<unsigned int, const Loads::NodalLoadCombination*>())).first;
+                        }
+                      
+                      insert_success = elem_nodal_map_it->second.insert
+                      (std::map<unsigned int, const Loads::NodalLoadCombination*>::value_type
+                       (load_combo->getNodeID(), load_combo)).second;
+                      Assert(insert_success, ExcInternalError());
+                  }
+            }
+      }
+    
+}

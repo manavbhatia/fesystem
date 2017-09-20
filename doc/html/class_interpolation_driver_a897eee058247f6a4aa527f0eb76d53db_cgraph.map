@@ -1,0 +1,10 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$class_load_database.html#a767743247804494bd42891a6dd0fbde9" title="LoadDatabase::addLoadSet" alt="" coords="324,5,511,33"/>
+<area shape="rect" id="node7" href="$class_load_database.html#ad7504527a53cb66df0c6665130ac08fb" title="clear the data stored in the database" alt="" coords="345,57,490,85"/>
+<area shape="rect" id="node9" href="$class_mesh_d_s_1_1_f_e_mesh_data.html#ad50959fe4436d50b9ea69015d4b9690a" title="MeshDS::FEMeshData::getForeignIDFromNode" alt="" coords="265,109,570,137"/>
+<area shape="rect" id="node11" href="$class_load_database.html#a6220cd7c63a9733bf6f6569f7fdc3afe" title="LoadDatabase::getLoadSetID" alt="" coords="319,161,516,189"/>
+<area shape="rect" id="node13" href="$class_mesh_d_s_1_1_mesh_list.html#a5152c213bb3eb1dcf85afa5aee15e3da" title="returns mesh data for the given ID" alt="" coords="285,213,550,241"/>
+<area shape="rect" id="node15" href="$class_mesh_d_s_1_1_mesh_list.html#ae343aab504dba895c519fc2d120f2d41" title="returns mesh with the given ID" alt="" coords="299,265,535,293"/>
+<area shape="rect" id="node17" href="$class_interpolation_case.html#a49eb6dfd6f7e5e177aa5090388169f09" title="returns the type of interpolation used for this case" alt="" coords="338,317,497,345"/>
+<area shape="rect" id="node5" href="$class_load_set_base.html#a15992c63d89a096799b4d789b059237b" title="LoadSetBase::getLoadSetID" alt="" coords="619,5,810,33"/>
+</map>

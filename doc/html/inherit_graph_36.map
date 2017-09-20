@@ -1,0 +1,5 @@
+<map id="G" name="G">
+<area shape="rect" id="node1" href="$class_load_case_base.html" title="LoadCaseBase" alt="" coords="5,31,118,59"/>
+<area shape="rect" id="node3" href="$class_time_dependent_load_case.html" title="TimeDependentLoadCase" alt="" coords="170,5,347,33"/>
+<area shape="rect" id="node5" href="$class_time_independent_load_case.html" title="TimeIndependentLoadCase" alt="" coords="166,57,351,85"/>
+</map>

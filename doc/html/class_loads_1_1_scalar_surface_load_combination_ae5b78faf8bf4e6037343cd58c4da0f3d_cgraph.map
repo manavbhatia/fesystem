@@ -1,0 +1,6 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$class_loads_1_1_surface_load_combination.html#a221e782ddf1b1bfe78234cf143278837" title="Loads::SurfaceLoadCombination::getElemID" alt="" coords="373,5,659,33"/>
+<area shape="rect" id="node5" href="$class_loads_1_1_surface_load_combination.html#a68230502cfbada2354fdc792908ad9e6" title="Loads::SurfaceLoadCombination::nLoads" alt="" coords="715,57,981,85"/>
+<area shape="rect" id="node7" href="$class_load_base.html#a7a48d93a94725f9d47c5bd40f5d95cd6" title="LoadBase::getLoadClassEnumID" alt="" coords="407,109,625,137"/>
+<area shape="rect" id="node9" href="$class_loads_1_1_surface_load_combination.html#a320fa9863b277039aeb040be30b4f6b6" title="Loads::SurfaceLoadCombination::getSurfaceID" alt="" coords="366,161,666,189"/>
+</map>

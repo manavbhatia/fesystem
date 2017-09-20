@@ -1,0 +1,6 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$class_elem_set_list.html#a8a709469ee00040570663c1dff486777" title="ElemSetList::addElemSetToMap" alt="" coords="291,5,504,33"/>
+<area shape="rect" id="node5" href="$class_elem_set.html#a33d75279ad0bacc9219f40cf8c8fdefe" title="returns the ID of this elem set" alt="" coords="351,57,444,85"/>
+<area shape="rect" id="node7" href="$namespace_f_e_system_i_o_utility.html#aa30713ce0d8d0f5b323386120729a9e8" title="makes sure that the input has the specified tag" alt="" coords="285,109,510,137"/>
+<area shape="rect" id="node9" href="$class_elem_set.html#a859b83d49328a322848f2534480cc145" title="ElemSet::readFromInputStream" alt="" coords="293,161,502,189"/>
+</map>

@@ -1,0 +1,174 @@
+This file contains the input file format specification.
+-- The words inside square brackets imply that the input file will
+contain a tag whose value can be one of those specified.
+-- square brackets with only a space in between imply that the input
+file should have atleast one space.
+-- words without the square brackets should appear exactly inside the
+input file. 
+--
+
+
+**NEW_LINE:  
+[discipline_tag] [ ] [kind_tag] [ ] [solver]
+
+[discipline_tag] = tag specifying the name of the discipline
+		 = STRUCTURAL / THERMAL
+[kind_tag]	 = tag specifying the kind of analysis to be performed
+		 = STATIC / STEADY_STATE / TRANSIENT / MODAL
+[solver]	 = tag specifying the solver to be used
+		 = NEWMARK / IMPLICIT
+
+
+**NEW_LINE: 
+LOADS_FILE_NAME [ ] [loads_file]
+
+[loads_file]	= a user specified name for the file that contains the
+loads for the finite element model.
+
+**NEW_LINE:
+DESIGN_VARIABLE_BEGIN
+
+**NEW_LINE:
+PROPERTY_DESIGN_VARIABLE [ ] [#num_proprty_vars]
+[#DV_ID] [ ] [#DV_name] [ ] [#initial_value] [ ] [#lower_bound] [ ] [#upper_bound] [ ] [#property_card_ID] [ ] [#property_tag]
+
+[#DV_ID] 	= integer specifying a unique ID for the DV
+[#DV_name] 	= a string specifying the name for the DV
+[#initial_value]= DV initial value
+[#lower_bound]  = DV lower bound
+[#upper bound]  = DV upper bound
+[#property_card_ID] = integer specifying the property card ID in which to which this DV is related
+[#property_tag] = name of the property which is related to this DV. The possible names are the same as 
+		  the tags for properties (see below).
+
+**NEW_LINE:
+SHAPE_DESIGN_VARIABLE [ ] [#num_shape_vars]
+[#DV_ID] [ ] [#DV_name] [ ] [#initial_value] [ ] [#lower_bound] [ ] [#upper_bound] [#perturbation_fraction] 
+[#perturbed_mesh_file_name]
+
+[#perturbation_fraction] = a real number that will define the perturbation to be used for this design variable
+			   during sensitivity analysis
+[#perturbed_mesh_file_name] = file containing the mesh that will be used for sensitivity analysis for this DV
+
+
+**NEW_LINE:
+DESIGN_VARIABLE_END
+
+**NEW_LINE: 
+PROPERTY_BEGIN [ ] [#num_of_cards]
+
+[#num_of_cards]	 = an integer specifying the number of property cards
+in the input file.
+
+**NEW_LINE:
+PROPERTY_CARD_BEGIN
+
+**NEW_LINE: 
+ID [ ] [#property_card_id]
+
+[#property_card_id]	= integer specifying the property card id
+
+**NEW_LINE: (this is to be repeated for each property)
+[property_name_tag] [ ] [#property_value]
+
+[property_name_tag]   = tag specifying the name of the property
+		      = RHO / ALPHA_EXPANSION / K_11 / E_11 / NU /
+		      I_XX / I_YY / I_XY / EMISSIVITY / REFLECTIVITY 
+[#property_value]     = a real number specifying the property value
+
+**NEW_LINE: 
+VARIABLE_PROPERTY
+
+**NEW_LINE: (this is to be repeated for each variable  property)
+[property_name_tag] [ ] [#DV_ID]
+
+[#DV_ID] 	= ID of the design variable that defines the value of this property
+
+**NEW_LINE:  (specifying this tag signifies the end of the current property
+card data)
+PROPERTY_CARD_END
+
+**NEW_LINE: (this signifies the end of the property card section)
+PROPERTY_END
+
+**NEW_LINE:
+NODE_BEGIN [ ] [#num_nodes]
+
+[#num_nodes]   = integer specifying the number of nodes in the input
+file
+
+**NEW_LINE: (this is repeated for each node)
+[#node_id] [ ] [#x_location] [ ] [y_location] [ ] [#z_location]
+
+**NEW_LINE:
+NODE_END
+
+**NEW_LINE:
+ELEMENT_BEGIN [ ] [#num_elements]
+
+[#num_elements]	  = integer specifying the number of elements in the
+input file
+
+**NEW_LINE: 
+[elem_type_tag] [ ] [#elem_id] [ ] [#property_id] [ ] [#elem node ids] 
+
+[elem_type_tag]	  = element type
+		  = BAR2 / BAR3 / QUAD4 / QUAD8 / QUAD9 / TRI3 /
+		  TRI6 / HEX8 / HEX20 / HEX27 / TET4 / TET10
+[#elem_id]	  = integer specifying the element id
+[#property_id]	  = integer specifying the property card for this
+		  element
+[#elem node ids]  = these are multiple integers that specify the ids of the
+		  nodes for this element
+
+**NEW_LINE:
+ELEMENT_END
+
+**NEW_LINE: 
+OUTPUT_REQUEST_BEGIN [ ] [#num_requests]
+
+[#num_requests] 	= integer specifying the number of requests 
+
+**NEW_LINE:
+OUTPUT_FILE_NAME [ ] [output_file]
+
+[output_file] 	= user specified name to which the data will be written
+
+**NEW_LINE: (repeat for each request)
+[request_tag] [ ] [gmv_file_name]
+
+[request_tag] 	= request tag, which can take one of following values
+				= PRINT_STIFFNESS_MATRIX / PRINT_MASS_MATRIX / PRINT_DAMPING_MATRIX /
+				PRINT_FORCE_VECTOR / PRINT_SOLUTION_VECTOR / MESH_AND_SOLUTION_GMV_PLOT
+[gmv_file_name] = user specified file name for writing the gmv format file (needed only for the 
+				MESH_AND_SOLUTION_GMV_PLOT tag)
+
+**NEW_LINE:
+OUTPUT_REQUEST_END
+
+
+Following is the format of the loads file:
+
+**NEW_LINE: 
+SURFACE_FLUX_LOAD [ ] [#num_loads]
+
+[#num_loads] 	= integer specifying the number of loads
+
+**NEW_LINE: (repeat for each load)
+[#load_id] [ ] [#elem_id] [ ] [#surface_id] [ ] [#load_value]
+
+[#load_id]	= a unique integer load id for this load
+[#elem_id] 	= integer specifying the elem ID of the node on which this load acts
+[#surface_id] 	= id of the surface on which the load acts
+[#load_value]	= a real number representing the load value. Positive value goes into the element.
+
+**NEW_LINE: 
+VOLUME_LOAD [ ] [#num_loads]
+[#num_loads] 	= integer specifying the number of loads 
+
+**NEW_LINE: (repeat for each load)
+[#load_id] [ ] [#elem_id] [ ] [#load_value]
+
+[#load_id]	= a unique integer load id for this load
+[#elem_id] 	= integer specifying the elem ID of the node on which this load acts
+[#load_value]	= a real number representing the load value. Positive value indicates heat generation

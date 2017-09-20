@@ -1,0 +1,407 @@
+// $Id: PetscTransientSolver.C,v 1.1.2.2 2007-03-14 22:05:03 manav Exp $
+
+// FESystem includes
+#include "Solvers/PetscTransientSolver.h"
+#include "Solvers/PetscNonlinearSolver.h"
+#include "FESystem/FESystemController.h"
+#include "Solvers/TransientSolverInfo.h"
+#include "Solvers/NonlinearSolverInfo.h"
+#include "Solvers/LinearSolverInfo.h"
+#include "Utilities/TimeLogs.h"
+#include "AnalysisDriver/TransientAnalysisDriver.h"
+
+
+// libMesh includes
+#include "petsc_vector.h"
+#include "petsc_matrix.h"
+
+
+// forward declerations of functions that handle the jacobian and 
+// residual function evaluations
+PetscErrorCode 
+FESystemNonlinearTransientSolverRHSFunctionEvaluation
+(TS tsolver, PetscReal time, Vec x, Vec f, void *ctx);
+
+PetscErrorCode 
+FESystemNonlinearTransientSolverRHSJacobianEvaluation
+(TS tsolver, PetscReal time, Vec x, Mat *A, Mat *B, MatStructure *flag, void *ctx);
+
+PetscErrorCode 
+FESystemTransientSolverMonitor
+(TS tsolver, PetscInt iter_num, PetscReal time, Vec x, void *ctx);
+
+
+
+Solver::PetscNonlinearTransientSolver::PetscNonlinearTransientSolver
+(const Solver::NonlinearTransientSolverInfo& transient_info,
+ const Solver::NonlinearSolverInfo& nonlinear_info,
+ const Solver::LinearSolverInfo& linear_info):
+Solver::NonlinearTransientSolverBase(transient_info,
+                                     nonlinear_info, 
+                                     linear_info)
+{
+  // create the SNES context and set the KSP and PC options
+  PetscErrorCode ierr = 0;
+  ierr = TSCreate(FESystem::COMM_WORLD, &(this->petsc_ts));
+  CHKERRABORT(FESystem::COMM_WORLD, ierr);
+  
+  // set the options for the SNES
+  switch (this->transient_solver_info.getTransientSolverKindEnumID())
+    {
+    case PETSC_FEULER_TRANSIENT_SOLVER_ENUM_ID:
+      {
+        ierr = TSSetType(this->petsc_ts, TS_EULER);
+        CHKERRABORT(FESystem::COMM_WORLD,ierr);
+      }
+      break;
+      
+    case PETSC_BEULER_TRANSIENT_SOLVER_ENUM_ID:
+      {
+        ierr = TSSetType(this->petsc_ts, TS_BEULER);
+        CHKERRABORT(FESystem::COMM_WORLD,ierr);
+      }
+      break;
+
+    case PETSC_CRANK_NICHOLSON_TRANSIENT_SOLVER_ENUM_ID:
+      {
+        ierr = TSSetType(this->petsc_ts, TS_CRANK_NICHOLSON);
+        CHKERRABORT(FESystem::COMM_WORLD,ierr);
+      }
+      break;
+      
+    case PETSC_RUNGE_KUTTA_TRANSIENT_SOLVER_ENUM_ID:
+      {
+        ierr = TSSetType(this->petsc_ts, TS_RUNGE_KUTTA);
+        CHKERRABORT(FESystem::COMM_WORLD,ierr);
+      }
+      break;
+      
+    default:
+      Assert(false, ExcInternalError());
+    }
+  
+  ierr = TSSetProblemType(this->petsc_ts, TS_NONLINEAR);
+  CHKERRABORT(FESystem::COMM_WORLD,ierr);
+  
+  ierr = TSSetDuration(this->petsc_ts,
+                       this->transient_solver_info.getMaxTimeIterations(),
+                       this->transient_solver_info.getDuration());
+  CHKERRABORT(FESystem::COMM_WORLD,ierr);
+  
+  ierr = TSSetInitialTimeStep(this->petsc_ts,
+                              this->transient_solver_info.getInitialTime(),
+                              this->transient_solver_info.getInitialTimeStep());
+  CHKERRABORT(FESystem::COMM_WORLD,ierr);
+  
+  // now, set the tolerance for adaptive time stepping. However, adaptive time stepping
+  // is allowed only for RK methods, and that should be assured for this
+  if (this->transient_solver_info.ifAdaptiveTimeSteps())
+    {
+    AssertThrow (this->transient_solver_info.getTransientSolverKindEnumID() == 
+                 Solver::PETSC_RUNGE_KUTTA_TRANSIENT_SOLVER::num(),
+                 ExcInternalError());
+    
+    ierr = TSRKSetTolerance(this->petsc_ts,
+                            this->transient_solver_info.getGlobalTolerance());
+    CHKERRABORT(FESystem::COMM_WORLD,ierr);
+    }
+
+
+  // set the nonlinear solver options
+  ierr = TSGetSNES(this->petsc_ts, &(this->petsc_snes));
+  CHKERRABORT(FESystem::COMM_WORLD,ierr);
+
+  // set the options for the SNES
+  switch (this->nonlinear_solver_info.getNonlinearSolverKindEnumID())
+    {
+    case NEWTON_NONLINEAR_SOLVER_CUBIC_LINE_SEARCH_ENUM_ID:
+      {
+        // set the solver type to line search, and also set the line
+        // search type
+        ierr = SNESSetType(this->petsc_snes, SNESLS);
+        CHKERRABORT(FESystem::COMM_WORLD,ierr);
+        
+        ierr = SNESLineSearchSet(this->petsc_snes, SNESLineSearchCubic, PETSC_NULL);
+        CHKERRABORT(FESystem::COMM_WORLD,ierr);
+      }
+      break;
+      
+    case NEWTON_NONLINEAR_SOLVER_QUADRATIC_LINE_SEARCH_ENUM_ID:
+      {
+        // set the solver type to line search, and also set the line
+        // search type
+        ierr = SNESSetType(this->petsc_snes, SNESLS);
+        CHKERRABORT(FESystem::COMM_WORLD,ierr);
+        
+        ierr = SNESLineSearchSet(this->petsc_snes, SNESLineSearchQuadratic, PETSC_NULL);
+        CHKERRABORT(FESystem::COMM_WORLD,ierr);
+      }
+      break;
+      
+    case NEWTON_NONLINEAR_SOLVER_NO_LINE_SEARCH_ENUM_ID:
+      {
+        // set the solver type to line search, and also set the line
+        // search type
+        ierr = SNESSetType(this->petsc_snes, SNESLS);
+        CHKERRABORT(FESystem::COMM_WORLD,ierr);
+        
+        ierr = SNESLineSearchSet(this->petsc_snes, SNESLineSearchNo, PETSC_NULL);
+        CHKERRABORT(FESystem::COMM_WORLD,ierr);
+      }
+      break;
+      
+    case NEWTON_NONLINEAR_SOLVER_NO_NORMS_LINE_SEARCH_ENUM_ID:
+      {
+        // set the solver type to line search, and also set the line
+        // search type
+        ierr = SNESSetType(this->petsc_snes, SNESLS);
+        CHKERRABORT(FESystem::COMM_WORLD,ierr);
+        
+        ierr = SNESLineSearchSet(this->petsc_snes, SNESLineSearchNoNorms, PETSC_NULL);
+        CHKERRABORT(FESystem::COMM_WORLD,ierr);
+      }
+      break;
+      
+    default:
+      Assert(false, ExcInternalError());
+    }
+  
+    const double nonlinear_tol = this->nonlinear_solver_info.getConvergenceTolerance();
+    const unsigned int nonlinear_maxits = this->nonlinear_solver_info.getMaximumIterations();
+    
+    ierr = SNESSetTolerances(this->petsc_snes, nonlinear_tol, nonlinear_tol, nonlinear_tol, 
+                             nonlinear_maxits, 1000);
+    CHKERRABORT(FESystem::COMM_WORLD, ierr);
+    
+    // set the default monitor for the solver
+//    ierr = SNESSetMonitor(this->petsc_snes,
+//                          SNESDefaultMonitor, 
+//                          PETSC_NULL, PETSC_NULL);
+    CHKERRABORT(FESystem::COMM_WORLD,ierr);
+        
+    // get the KSP context from the SNES and set its options
+    ierr = SNESGetKSP(this->petsc_snes, &(this->petsc_ksp));
+    CHKERRABORT(FESystem::COMM_WORLD,ierr);
+//    }
+//  else if (this->transient_solver_info.getTransientProblemKindEnumID() == 
+//           Solver::NONLINEAR_TRANSIENT_PROBLEM::num())
+//    {
+//    ierr = TSSetProblemType(this->petsc_ts, TS_LINEAR);
+//    CHKERRABORT(FESystem::COMM_WORLD,ierr);
+//    
+//    ierr = TSGetKSP(this->petsc_ts, &(this->petsc_ksp));
+//    CHKERRABORT(FESystem::COMM_WORLD,ierr);
+//    }
+    
+  // set the KSP type
+  switch (this->linear_solver_info.getKSPTypeEnumID())
+    {
+    case KSP_PRE_ONLY_ENUM_ID:
+      {
+        ierr = KSPSetType(this->petsc_ksp , KSPPREONLY);
+        CHKERRABORT(FESystem::COMM_WORLD, ierr);
+      }
+      break;
+      
+    default:
+      Assert(false, ExcInternalError());
+    }
+  
+  
+  // set the PC to LU
+  ierr = KSPGetPC(this->petsc_ksp, &(this->petsc_pc));
+  CHKERRABORT(FESystem::COMM_WORLD, ierr);
+  
+  switch (this->linear_solver_info.getPCTypeEnumID())
+    {
+    case PC_LU_ENUM_ID:
+      {
+        ierr = PCSetType(this->petsc_pc , PCLU);
+        CHKERRABORT(FESystem::COMM_WORLD, ierr);
+      }
+      break;
+      
+    default:
+      Assert(false, ExcInternalError());
+    }
+  
+}
+
+
+
+Solver::PetscNonlinearTransientSolver::~PetscNonlinearTransientSolver()
+{
+  // destroy the TS context
+  PetscErrorCode ierr = TSDestroy(this->petsc_ts);
+  CHKERRABORT(FESystem::COMM_WORLD, ierr);  
+}
+
+
+
+
+void
+Solver::PetscNonlinearTransientSolver::clear()
+{
+  Solver::NonlinearTransientSolverBase::clear();
+}
+
+
+
+
+
+void
+Solver::PetscNonlinearTransientSolver::solve(NumericVector<double>& solution)
+{
+  this->analysis_driver->getFESystemController().performance_logging->setEvent
+  ("PetscNonlinearSolver::solve()", "Solver");
+
+  Assert(this->jacobian != NULL, ExcInternalError());
+  
+  this->jacobian->close();
+  solution.close();
+  
+  Mat petsc_jac = dynamic_cast<PetscMatrix<double>*>(this->jacobian)->mat();
+  Vec petsc_sol = dynamic_cast<PetscVector<double>&>(solution).vec();
+
+  PetscErrorCode ierr;
+  ierr = TSSetRHSFunction(this->petsc_ts, FESystemNonlinearTransientSolverRHSFunctionEvaluation,
+                          this);
+  CHKERRABORT(FESystem::COMM_WORLD, ierr);
+
+  ierr = TSSetRHSJacobian(this->petsc_ts, petsc_jac, petsc_jac,
+                          FESystemNonlinearTransientSolverRHSJacobianEvaluation,
+                          this);
+  CHKERRABORT(FESystem::COMM_WORLD, ierr);
+  
+  ierr = TSSetSolution(this->petsc_ts, petsc_sol);
+  CHKERRABORT(FESystem::COMM_WORLD, ierr);
+
+  
+  ierr = TSSetMonitor(this->petsc_ts, 
+                      FESystemTransientSolverMonitor,
+                      this, PETSC_NULL);
+  CHKERRABORT(FESystem::COMM_WORLD, ierr);
+  
+  // now step
+  PetscInt steps=0;
+  double time=0.0;
+  ierr = TSStep(this->petsc_ts, &steps, &time);
+  CHKERRABORT(FESystem::COMM_WORLD, ierr);
+  
+  
+  this->analysis_driver->getFESystemController().performance_logging->unsetEvent
+    ("PetscNonlinearSolver::solve()", "Solver"); 
+}
+
+
+
+
+
+double
+Solver::PetscNonlinearTransientSolver::getCurrentTime()
+{
+  double time;
+  PetscErrorCode ierr;
+  ierr = TSGetTime(this->petsc_ts, &time);
+  CHKERRABORT(FESystem::COMM_WORLD, ierr);
+  
+  return time;
+}
+
+
+
+
+
+double
+Solver::PetscNonlinearTransientSolver::getCurrentStepSize()
+{
+  double time;
+  PetscErrorCode ierr;
+  ierr = TSGetTimeStep(this->petsc_ts, &time);
+  CHKERRABORT(FESystem::COMM_WORLD, ierr);
+  
+  return time;  
+}
+
+
+
+
+
+unsigned int
+Solver::PetscNonlinearTransientSolver::getCurrentIterationNumber()
+{
+  PetscInt time;
+  PetscErrorCode ierr;
+  ierr = TSGetTimeStepNumber(this->petsc_ts, &time);
+  CHKERRABORT(FESystem::COMM_WORLD, ierr);
+  
+  return time;  
+}
+
+
+
+PetscErrorCode 
+FESystemNonlinearTransientSolverRHSFunctionEvaluation
+(TS tsolver, PetscReal time, Vec x, Vec f, void *ctx)
+{
+  // unused parameters
+  (void) tsolver;
+  
+  // get the pointer to the solver, and ask it to calculate the 
+  // residual at the function value given
+  Solver::NonlinearTransientSolverBase *solver = 
+  static_cast<Solver::NonlinearTransientSolverBase*> (ctx);
+  
+  PetscVector<double> sol_vec(x);
+  PetscVector<double> res_vec(f);
+  
+  solver->evaluateRHSFunction(time, sol_vec, res_vec);
+  
+  return 0;
+}
+
+
+
+PetscErrorCode 
+FESystemNonlinearTransientSolverRHSJacobianEvaluation
+(TS tsolver, PetscReal time, Vec x, Mat *A, Mat *B, MatStructure *flag, void *ctx)
+{
+  // unused parameter
+  (void) tsolver;
+  (void) B;
+
+  // get the pointer to the solver, and ask it to calculate the 
+  // residual at the function value given
+  Solver::NonlinearTransientSolverBase *solver = 
+  static_cast<Solver::NonlinearTransientSolverBase*> (ctx);
+  
+  PetscVector<double> sol_vec(x);
+  PetscMatrix<double> jac_mat(*A);
+  
+  solver->evaluateRHSJacobian(time, sol_vec, jac_mat);
+  
+  *flag = SAME_NONZERO_PATTERN;
+  return 0;
+}
+
+
+
+PetscErrorCode 
+FESystemTransientSolverMonitor
+(TS tsolver, PetscInt iter_num, PetscReal time, Vec x, void *ctx)
+{
+  // unused parameter
+  (void) tsolver;
+  
+  Solver::NonlinearTransientSolverBase *solver = 
+    static_cast<Solver::NonlinearTransientSolverBase*> (ctx);
+
+  Driver::TransientAnalysisDriver& driver = 
+    static_cast<Driver::TransientAnalysisDriver&>(solver->getAnalysisDriver());
+  
+  PetscVector<double> sol_vec(x);
+  
+  driver.setSolverIterationIncrement(time, iter_num, sol_vec);
+  
+  return 0;
+}

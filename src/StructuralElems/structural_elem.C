@@ -1,0 +1,922 @@
+// $Id: structural_elem.C,v 1.36.6.2 2007-05-08 05:19:13 manav Exp $
+
+// C++ includes
+
+
+// FESystem includes
+#include "StructuralElems/structural_elem.h"
+#include "FESystem/FESystemController.h"
+#include "Discipline/StructuralAnalysis.h"
+#include "AnalysisDriver/AnalysisDriver.h"
+#include "Mesh/MeshList.h"
+#include "Mesh/FEMeshData.h"
+#include "Database/ElementDataStorage.h"
+#include "Database/GlobalDataStorage.h"
+#include "Loads/LoadDatabase.h"
+#include "PostProcess/ElemPostProcessQty.h"
+#include "Loads/LoadCombination.h"
+#include "Properties/ElemDataCard.h"
+#include "Properties/MaterialPropertyNameEnums.h"
+#include "DesignData/ShapeParameter.h"
+#include "DesignData/PropertyParameter.h"
+#include "Properties/Isotropic2DElemDataCard.h"
+#include "Properties/Isotropic1DElemDataCard.h"
+#include "FESystem/AnalysisCase.h"
+
+
+FESystemElem::StructuralElem::StructuralElem
+(const unsigned int dim, 
+ const unsigned int elem_enum_ID,
+ Discipline::AnalysisDisciplineBase& discipline):
+  FESystemElem::FESystemElemBase(dim, elem_enum_ID, discipline)
+{
+
+}
+
+
+
+
+FESystemElem::StructuralElem::~StructuralElem()
+{
+	
+}
+
+
+
+
+
+void
+FESystemElem::StructuralElem::calculateAssembledQty(DenseMatrix<double>* quantity,
+                                                    const unsigned int qty_name,
+                                                    const unsigned int design_point_enum_ID,
+                                                    bool sensitivity_calc)
+{
+  assert (quantity != NULL);
+	
+  switch (qty_name)
+    {
+    case STRUCTURAL_M_MATRIX_ENUM_ID:
+      this->calculate_M(quantity,design_point_enum_ID, sensitivity_calc);
+      break;
+
+    case STRUCTURAL_K_MATRIX_ENUM_ID:
+      this->calculate_K(quantity,design_point_enum_ID, sensitivity_calc);
+      break;
+
+    case STRUCTURAL_K_G_MATRIX_ENUM_ID:
+      this->calculate_K_G(quantity,design_point_enum_ID, sensitivity_calc);
+      break;
+			
+    case STRUCTURAL_C_MATRIX_ENUM_ID:
+    case STRUCTURAL_F_T_VECTOR_ENUM_ID:
+    case STRUCTURAL_F_PRESSURE_VECTOR_ENUM_ID:
+    default:
+      abort();
+      break;
+    }
+}
+
+
+
+
+
+void
+FESystemElem::StructuralElem::calculateAssembledQty(DenseVector<double>* quantity,
+                                                    const unsigned int qty_name,
+                                                    const unsigned int design_point_enum_ID,
+                                                    bool sensitivity_calc)
+{
+  assert (quantity != NULL);
+	
+  switch (qty_name)
+    {			
+    case STRUCTURAL_F_T_VECTOR_ENUM_ID:
+      this->calculate_F_T(quantity, design_point_enum_ID, sensitivity_calc);
+      break;
+			
+    case STRUCTURAL_F_PRESSURE_VECTOR_ENUM_ID:
+      this->calculate_F_Pressure(quantity, design_point_enum_ID, sensitivity_calc);
+      break;
+      
+    case STRUCTURAL_M_MATRIX_ENUM_ID:
+    case STRUCTURAL_C_MATRIX_ENUM_ID:
+    case STRUCTURAL_K_MATRIX_ENUM_ID:
+    default:
+      abort();
+      break;
+    }
+}
+
+
+
+
+
+void 
+FESystemElem::StructuralElem::getStructuralT_matrix(DenseMatrix<double>* matrix,
+                                                    const unsigned int design_point_enum_ID,
+                                                    bool shape_sensitivity)
+{
+  assert (matrix != NULL);
+  
+  static unsigned int n_nodes;
+  n_nodes = this->getNNodes();
+
+  if (!(matrix->m() == 6*n_nodes && matrix->n() == 6*n_nodes))
+    matrix->resize(n_nodes * 6, n_nodes * 6);
+  
+  matrix->zero();
+  
+  static DenseMatrix<double> T_mat;
+  T_mat.zero();
+  
+  if (!shape_sensitivity)
+    this->getFESystemElemQty(FESystemElem::TRANSFORM_MATRIX::num(), &T_mat, 
+                             design_point_enum_ID, FESystemElem::ELEM_VOLUME::num(),
+                             INVALID_FE);
+  else
+    {
+      // make sure that the sensitivity is at the base elem
+      Assert (design_point_enum_ID == FESystemElem::BASE_ELEM::num(), ExcInternalError());
+      this->getFESystemElemQtyShapeSensitivity(FESystemElem::TRANSFORM_MATRIX::num(), &T_mat,
+					       FESystemElem::ELEM_VOLUME::num(), INVALID_FE);
+    }
+  
+  for (unsigned k=0; k<2; k++)
+    for (unsigned int i=0; i<(n_nodes*3); i++)
+      for (unsigned int j =0; j<(n_nodes*3); j++)
+        (*matrix)(i+(n_nodes*3*k),j+(n_nodes*3*k)) = T_mat(i,j);
+}
+
+
+
+
+
+void
+FESystemElem::StructuralElem::calculate_F_Pressure(DenseVector<double>* vector, 
+                                                   const unsigned int design_point_enum_ID,
+                                                   bool sensitivity_calculation )
+{
+  unsigned int n_nodes;
+  n_nodes = this->getNNodes();
+  
+  std::map<unsigned int, std::map<unsigned int, const Loads::SurfaceLoadCombination*> >::const_iterator 
+    load_map_it, load_sens_map_it;
+  std::map<unsigned int, const Loads::SurfaceLoadCombination*>::const_iterator 
+    load_iterator, end_iterator,		// iterators for the loads
+    load_sens_iterator;		// iterators for the load sensitivities
+  
+  // if no loads exist return from the function with an arguement false
+  // this implies that the quantity is zero and need not be processed
+  if (this->surface_loads->count(SURFACE_PRESSURE::num()) == 0)
+    return;
+  else
+    load_map_it = this->surface_loads->find(SURFACE_PRESSURE::num());
+  
+  // obtain the two iterators as separate values
+  load_iterator = load_map_it->second.begin();
+  end_iterator = load_map_it->second.end();
+  
+  unsigned int side_num;
+  bool load_on_elem_face;
+  unsigned int n_sides; 
+  n_sides =
+    this->geometric_elems_for_DV_map.find(design_point_enum_ID)->second->n_sides();
+
+  double load_val, load_val_sens;
+  load_val = 0.0; load_val_sens = 0.0;
+  
+  // process the load and update the element load vector.
+  for (; load_iterator != end_iterator; load_iterator++)
+    {
+      side_num = load_iterator->second->getSurfaceID();
+      
+      // for 2-D elements, the element face itself can carry a surface flux load.
+      load_on_elem_face = false;
+      
+      if (n_sides == side_num)
+        load_on_elem_face = true;
+      
+      double factor, factor_sens;
+      factor = 0.0; factor_sens = 0.0;
+      
+      switch (this->dimension)
+	{
+	case 1:
+	  {
+	    this->elem_property_card->getPropertyValue(AREA::num(), factor);
+	    if (sensitivity_calculation)
+	      this->elem_property_card->getPropertyDerivativeForGlobalParameter
+		(AREA::num(), this->sensitivity_parameter_ID, factor_sens);
+	  }
+	  break;
+				
+	case 2:
+	  {
+	    // the integration will be different if the load is on the element face
+	    if (load_on_elem_face)
+	      {
+		factor =  1.0;
+		factor_sens = 0.0;
+	      }
+	    else 
+	      {
+		this->elem_property_card->getPropertyValue(THICKNESS_2D_ELEM::num(), factor);
+		if (sensitivity_calculation)
+		  this->elem_property_card->getPropertyDerivativeForGlobalParameter
+		    (THICKNESS_2D_ELEM::num(), this->sensitivity_parameter_ID, factor_sens);
+	      }
+	  }
+	  break;
+        
+	case 3:
+	  {
+	    factor = 1.0;
+	    factor_sens = 0.0;
+	  }
+	  break;
+	}
+		
+      const unsigned int domain = this->getDomainEnumFromSideNumber(side_num);
+ 
+      static DenseVector<double> qty, qty_sens;
+      static DenseVector<double> surf_normal(3), surf_normal_sens(3);
+      qty.zero(); qty_sens.zero();
+      surf_normal.zero(); surf_normal_sens.zero();
+   
+      this->getFESystemElemQty(FESystemElem::SURFACE_NORMAL::num(), &surf_normal, 
+			       design_point_enum_ID, domain, INVALID_FE);
+
+      
+      load_val = 
+        dynamic_cast<const Loads::ScalarSurfaceLoadCombination*>(load_iterator->second)->getValue();
+
+      if (sensitivity_calculation)
+        {
+        // get the iterator for the load sensitivity
+        load_sens_map_it = this->surface_load_sens->find(SURFACE_PRESSURE::num());
+        // if the load exists, its sensitivity should also be specified
+        Assert(load_sens_map_it != this->surface_load_sens->end(), 
+               ExcInternalError());
+        load_sens_iterator = load_sens_map_it->second.find(side_num);
+        AssertThrow(load_sens_iterator != load_sens_map_it->second.end(),
+               ExcInternalError());
+        
+        load_val_sens = 
+          dynamic_cast<const Loads::ScalarSurfaceLoadCombination*>(load_sens_iterator->second)->getValue();
+        
+	  switch (this->sensitivity_parameter)
+	    {	      
+	    case PROPERTY_PARAMETER_ENUM_ID:
+	      {
+		this->getFESystemElemQty(FESystemElem::N_FACTOR::num(), &qty, 
+					 design_point_enum_ID, domain, LAGRANGE);
+           
+		for (unsigned int i=0; i<3; i++)
+		  for (unsigned int j=0; j<n_nodes; j++)
+		    {
+		      (*vector)(i*n_nodes + j) = qty(j) * surf_normal(i) * 
+			(factor * load_val_sens + factor_sens * load_val);
+		    }
+	      }
+	      break;
+           
+	    case SHAPE_PARAMETER_ENUM_ID:
+	      {
+		this->getFESystemElemQty(FESystemElem::N_FACTOR::num(), &qty, 
+					 design_point_enum_ID, domain, LAGRANGE);
+           
+           
+		this->getFESystemElemQtyShapeSensitivity(FESystemElem::N_FACTOR::num(), 
+							 &qty_sens, domain, LAGRANGE);
+           
+		this->getFESystemElemQtyShapeSensitivity(FESystemElem::SURFACE_NORMAL::num(), 
+							 &surf_normal_sens, domain, LAGRANGE);
+           
+		for (unsigned int i=0; i<3; i++)
+		  for (unsigned int j=0; j<n_nodes; j++)
+		    {
+		      (*vector)(i*n_nodes + j) = 
+			factor * (qty(j) * (surf_normal(i) * load_val_sens + 
+					    surf_normal_sens(i) * load_val) + 
+				  qty_sens(j) * surf_normal(i) * load_val);
+		    }
+	      }
+	      break;
+               
+	    default:
+	      abort();
+	      break;
+	    }
+	}
+      else
+	{
+	  this->getFESystemElemQty(FESystemElem::N_FACTOR::num(), &qty, 
+				   design_point_enum_ID, domain, LAGRANGE);
+     
+	  for (unsigned int i=0; i<3; i++)
+	    for (unsigned int j=0; j<n_nodes; j++)
+	      (*vector)(i*n_nodes + j) = qty(j) * surf_normal(i) * factor * load_val;
+	}
+    }
+}
+
+
+
+
+
+
+void 
+FESystemElem::StructuralElem::calculate_F_B(DenseVector<double>* vector, 
+					    const unsigned int design_point_enum_ID,
+					    bool sensitivity_calculation)
+{
+  (void) vector;
+  (void) design_point_enum_ID;
+  (void) sensitivity_calculation;
+
+}
+
+
+/*
+  std::auto_ptr<ElemPostProcessQty> 
+  getElementPostProcessQty(std::vector<unsigned int> load_cases, std::vector<DesignData::DesignParameter*> des_vars) 
+  {
+  // this will proceede by initializing the elements for post process quantity, 
+  // for now, the elements will calculate their post process quantity at the 
+  // element centroid. Later, more sophisticated stress recovery techniques 
+  // can be used
+  std::vector<Point> point_vec();
+  point_vec.push_back(Point (0.,0.,0.));
+   
+  // get the iterators for load cases and design variables
+  std::vector<unsigned int>::const_iterator lc_it, lc_end;
+  std::vector<DesignData::DesignParameter*> dv_it, dv_begin, dv_end;
+   
+  lc_it = load_cases.begin();
+  lc_end = load_cases.end();
+   
+  dv_begin = des_vars.begin();
+  dv_end = des_vars.end();
+   
+  unsigned int n_dofs=0, n_strains=0;
+   
+  n_dofs = this->base_elem->n_nodes() * 6;
+  n_strains = this->nStrains();
+  n_nodes = this->base_elem->n_nodes();
+   
+  unsigned int load_case_ID = 0, DV_ID = 0;
+  DesignVariable* dv_ptr = NULL;
+   
+  // this is the vector in which all the strain operator matrices will
+  // be stored after calculation
+  DenseMatrix<double> strain_operator(n_strains, n_dofs), 
+  material_matrix(n_strains, n_strains),
+  thermal_material_matrix(n_strains, n_strains),
+  thermal_strain_operator_matrix(n_strains, n_nodes), 
+  thermal_strain_operator_matrix_sens(n_strains, n_nodes),
+  strain_operator_sens(n_strains, n_dofs), 
+  material_matrix_sens(n_strains, n_strains),
+  thermal_material_matrix_sens(n_strains, n_strains),
+  scratch_matrix(n_strains, n_strains);
+   
+  std::auto_ptr<DenseVector<double> > dof_values(NULL), 
+  temperature_vector(NULL), 
+  dof_values_sens(NULL), 
+  temperature_vector_sens(NULL);
+   
+  DenseVector<double> strain(n_strains), 
+  strain_sens(n_strains),
+  thermal_strain(n_strains), 
+  stress(n_strains),
+  scratch_vector(n_strains);
+   
+   
+  // the expression coded here is strain = B * u - alpha * B_T * delta_T;
+   
+  this->getElemQty(&strain_operator_vec, StructuralElem::STRAIN_OPERATOR);
+  this->getElemQty(&thermal_strain_operator_matrix, StructuralElem::THERMAL_STRAIN_OPERATOR);
+  this->getMaterialMatrix(&material_matrix, StructuralElem::MATERIAL_MATRIX);
+  this->getMaterialMatrix(&thermal_material_matrix, StructuralElem::THERMAL_MATERIAL_MATRIX);
+   
+  // now iterate over the load cases and DVs
+  for (; lc_it != lc_end; lc_it++)
+  {
+  // set the load case ID, and init the dv_iterator
+  load_case_ID = *lc_it;
+  dv_it = dv_begin;
+     
+  // get the dof values for this current load case
+  dof_values.reset(this->getElemDofValuesForLoadCase(load_case_ID).release());
+     
+  // get the temperature load vector
+  temperature_vector.reset(this->getElemNodalTemperatureForLoadCase(load_case_ID).release());
+     
+  // multiply and calculate the strain and stress
+  strain_operator.right_multiply_vector(*(dof_values.get()), strain);
+  scratch_matrix.zero();
+  scratch_matrix = thermal_material_matrix;
+  scratch_matrix.right_multiply(thermal_strain_operator);
+  scratch_matrix.right_multiply_vector(temperature_vector, thermal_strain);
+     
+  // subtract the thermal strain from strain to get the mechanical strain
+  strain.add(-1.0, thermal_strain);
+     
+  // calculate the stress
+  material_matrix.right_multiply_vector(strain, stress);
+     
+  // add these stress and strain values to the post process object
+     
+     
+     
+  for (; dv_it != dv_end; dv_it++)
+  {
+  // set the DV id, and get the DV from the database
+  dv_ptr = *dv_it;
+       
+  // set the DV for this element
+  this->DV = dv_ptr;
+       
+  // get the dof value sensitivity
+  dof_value_sens.reset(this->getElemDofValueSensitivityForLoadCaseAndDV(load_case_ID, dv_ptr->ID()));
+       
+  // get the temperature sensitivity
+  temperature_vector_sens.reset(this->getElemNodalTemperatureSensitivityForLoadCase(load_case_ID, dv_ptr->ID()));
+       
+  // depending on the DV type, either get the strain operator shape sensitivity 
+  // or get the material matrix sensitivity
+  switch(this->DV->type())
+  {
+  case PROPERTY_DV:
+  {
+  // get the material property sensitivity
+  strain_operator_sens.zero();
+  thermal_strain_operatr_sens.zero();
+  this->getMaterialMatrix(&material_matrix_sens, StructuralElem::MATERIAL_MATRIX, true);
+  this->getMaterialMatrix(&thermal_material_matrix_sens, StructuralElem::THERMAL_MATERIAL_MATRIX, true);
+  }
+  break;
+           
+  case SHAPE_DV:
+  {
+  // get the shape sensitivity of the strain operator
+  this->getElemQtyShapeSensitivity(&strain_operator_sens, StructuralElem::STRAIN_OPERATOR);
+  this->getElemQtyShapeSensitivity(&thermal_strain_operator_sens, StructuralElem::THERMAL_STRAIN_OPERATOR);
+  material_matrix_sens.zero();
+  thermal_material_matrix_sens.zero();
+  }
+  break;
+           
+  default:
+  abort();
+  break;
+  }
+  // multiply and get the strain,
+  strain_operator_sens.right_multiply_vector(*(dof_values.get()), strain_sens);
+  scratch_vector.zero();
+  strain_operator.right_multiply_vector(*(dof_value_sens.get()), scratch );
+       
+  strain_sens.add(1.0, scratch);
+       
+  scratch_vector.zero();
+  thermal_strain_operator_sens.right_multiply_vector(*(temperature_vector.get()), scratch_vector);
+  strain_sens.add(-1.0, scratch_vector);
+       
+  scratch_vector.zero();
+  thermal_strain_operator.right_multiply_vector(*(temperature_vector_sens.get()), scratch_vector);
+  strain_sens.add(-1.0, scratch_vector);
+       
+  // multiply and get the stress
+       
+       
+  }
+  }
+   
+  // then the strain operators be obtained in the element local axis
+  // then the matrial matrix is obtained
+  // the two are multiplied to calculate the stress in the local axis
+  // for each load case, and DV, the sensitivities are also calculated
+  }
+*/
+
+
+
+
+
+
+void 
+FESystemElem::StructuralElem::getElementAssembledQty(const unsigned int name,
+                                                     DenseMatrix<double>* qty)
+{
+  Assert(qty != NULL, ExcInternalError());
+  
+  static unsigned int n_nodes;
+  n_nodes = this->getNNodes();
+
+  static DenseMatrix<double> transformation_matrix(6*n_nodes, 6*n_nodes);
+
+  if (!(qty->m() == 6*n_nodes && qty->n() == 6*n_nodes))
+    {
+      qty->resize(6*n_nodes, 6*n_nodes);
+      transformation_matrix.resize(6*n_nodes, 6*n_nodes);
+    }
+  
+  if (!this->property_card_initialized)
+    this->initPropertyCard();
+  
+  // get the transformation matrix
+  transformation_matrix.zero();
+  
+  qty->zero();
+  
+  // calculate quantity and return it
+  this->calculateAssembledQty(qty, name, FESystemElem::BASE_ELEM::num(), false);
+  
+    
+    switch (this->dimension)
+    {
+    case 1:
+    case 2:
+      {
+        this->getStructuralT_matrix(&transformation_matrix, FESystemElem::BASE_ELEM::num(), false);
+
+          std::cout << "transformation matrix" << std::endl;
+          transformation_matrix.print(std::cout);
+          std::cout << "orig:" << std::endl;
+          qty->print(std::cout);
+
+        
+        // for a basic analysis, and property sensitivity, left multiply 
+        // with the transformation matrix
+        qty->left_multiply_transpose(transformation_matrix);
+        qty->right_multiply(transformation_matrix);
+      }
+      break;
+      
+    default:
+      {
+        // keep going
+      }
+    }
+    std::cout << "post multiply: " << name << std::endl;
+    qty->print(std::cout);
+    std::cout << std::endl;
+
+}
+
+
+
+void
+FESystemElem::StructuralElem::getElementAssembledQty(const unsigned int name,
+                                                     DenseVector<double>* qty)
+{
+  Assert(qty != NULL, ExcInternalError());
+  
+  static unsigned int n_nodes;
+  n_nodes = this->getNNodes();
+
+  static DenseVector<double> tmp_qty(6*n_nodes);
+  static DenseMatrix<double> transformation_matrix;
+
+  if (qty->size() != (6*n_nodes))
+    {
+      qty->resize(6*n_nodes);
+      tmp_qty.resize(6*n_nodes);
+      transformation_matrix.resize(6*n_nodes, 6*n_nodes);
+    }
+  
+  if (!this->property_card_initialized)
+    this->initPropertyCard();
+  
+  // get the transformation matrix
+  qty->zero();
+  transformation_matrix.zero();
+  tmp_qty.zero();
+    
+  // calculate quantity and return it
+  this->calculateAssembledQty(&tmp_qty, name, FESystemElem::BASE_ELEM::num(), false);
+  
+  switch (this->dimension)
+    {
+    case 1:
+    case 2:
+      {
+        this->getStructuralT_matrix(&transformation_matrix, FESystemElem::BASE_ELEM::num(), false);
+        transformation_matrix.left_multiply_vector(tmp_qty, *qty);
+      }
+      break;
+      
+    default:
+      {
+        // keep going
+      }
+    }
+}
+
+
+
+void 
+FESystemElem::StructuralElem::getElementAssembledQtySensitivity(const unsigned int name,
+                                                                DenseMatrix<double>* qty)
+{
+  Assert(qty != NULL, ExcInternalError());
+  
+  static unsigned int n_nodes;
+  n_nodes = this->getNNodes();
+  
+  static DenseMatrix<double> transformation_matrix(6*n_nodes, 6*n_nodes),
+    transformation_matrix_sens(6*n_nodes, 6*n_nodes),
+    basic_qty(6*n_nodes, 6*n_nodes);
+  
+  if (!(qty->m() == 6*n_nodes && qty->n() == 6*n_nodes))
+    {
+      qty->resize(6*n_nodes, 6*n_nodes);
+      basic_qty.resize(6*n_nodes, 6*n_nodes);
+      transformation_matrix.resize(6*n_nodes, 6*n_nodes);
+      transformation_matrix_sens.resize(6*n_nodes, 6*n_nodes);
+    }
+  
+  if (!this->property_card_initialized)
+    this->initPropertyCard();
+  
+  // get the transformation matrix
+  transformation_matrix.zero(); transformation_matrix_sens.zero();
+  basic_qty.zero();
+  
+  qty->zero();
+    
+  // call the calculation routine
+  this->calculateAssembledQty(qty, name, FESystemElem::BASE_ELEM::num(), true);
+  
+  switch (this->dimension)
+    {
+    case 1:
+    case 2:
+      {
+        // get the transformation matrix    
+        this->getStructuralT_matrix(&transformation_matrix, 
+                                    FESystemElem::BASE_ELEM::num(),false);
+        
+        // for a basic analysis, and property sensitivity, left multiply 
+        // with the transformation matrix
+        qty->left_multiply_transpose(transformation_matrix);
+        qty->right_multiply(transformation_matrix);
+        
+        switch (this->sensitivity_parameter)
+          {
+          case SHAPE_PARAMETER_ENUM_ID:
+            {
+              // get the sensitivity of the T matrix, and the basic quantity       
+              this->getStructuralT_matrix(&transformation_matrix_sens,
+                                          FESystemElem::BASE_ELEM::num(), true);
+              this->calculateAssembledQty(&basic_qty, name, 
+                                          FESystemElem::BASE_ELEM::num(), false);
+              
+              // the operation to be performed is d(transpose(T))/d_alpha * qty * T + 
+              // transpose(T) * qty * d(T)/d_alpha. 
+              basic_qty.left_multiply_transpose(transformation_matrix_sens);
+              basic_qty.right_multiply(transformation_matrix);
+              
+              qty->add(1.0, basic_qty);
+              qty->add_transpose(1.0, basic_qty);
+            }
+            break;
+            
+          default:
+            {
+              // keep going
+            }
+          }
+      }
+      break;
+      
+    default:
+      {
+        // keep going
+      }
+    }
+}	   
+
+
+
+
+void 
+FESystemElem::StructuralElem::getElementAssembledQtySensitivity(const unsigned int name,
+                                                                DenseVector<double> *qty)
+{
+  Assert(qty != NULL, ExcInternalError());
+  
+  static unsigned int n_nodes;
+  n_nodes = this->getNNodes();
+  static DenseMatrix<double> transformation_matrix(6*n_nodes, 6*n_nodes),
+    transformation_matrix_sens(6*n_nodes, 6*n_nodes);
+  static DenseVector<double> tmp_qty(6*n_nodes), basic_qty(6*n_nodes);
+  
+  if (qty->size() != (6*n_nodes))
+    {
+      qty->resize(6*n_nodes);
+      tmp_qty.resize(6*n_nodes);
+      basic_qty.resize(6*n_nodes);
+      transformation_matrix.resize(6*n_nodes, 6*n_nodes);
+      transformation_matrix_sens.resize(6*n_nodes, 6*n_nodes);
+    }
+  
+  if (! this->property_card_initialized)
+    this->initPropertyCard();
+  
+  // get the transformation matrix
+  // create a quantity and resize it
+  transformation_matrix.zero(); transformation_matrix_sens.zero();
+  tmp_qty.zero(); basic_qty.zero();
+  
+  qty->zero();
+    
+  // call the calculation routine
+  this->calculateAssembledQty(qty, name, FESystemElem::BASE_ELEM::num(), true);
+  
+  switch (this->dimension)
+    {
+    case 1:
+    case 2:
+      {
+        // get the transformation matrix    
+        this->getStructuralT_matrix(&transformation_matrix, 
+                                    FESystemElem::BASE_ELEM::num(),false);
+        
+        // for a basic analysis, and property sensitivity, left multiply 
+        // with the transformation matrix
+        transformation_matrix.left_multiply_vector(tmp_qty, *qty);
+        
+        switch (this->sensitivity_parameter)
+          {
+          case SHAPE_PARAMETER_ENUM_ID:
+            {
+              // get the sensitivity of the T matrix, and the basic quantity       
+              this->getStructuralT_matrix(&transformation_matrix_sens,
+                                          FESystemElem::BASE_ELEM::num(), true);
+              this->calculateAssembledQty(&basic_qty, name, 
+                                          FESystemElem::BASE_ELEM::num(), false);
+              
+              tmp_qty.zero();
+              transformation_matrix_sens.left_multiply_vector(basic_qty, tmp_qty);
+              qty->add(1.0, tmp_qty);
+            }
+            break;
+            
+          default:
+            {
+              // keep going
+            }
+          }
+      }
+      break;
+      
+    default:
+      {
+        // keep going
+      }
+    }  
+}	   
+
+
+
+
+
+void
+FESystemElem::StructuralElem::initPropertyCard()
+{
+  Assert(!this->property_card_initialized, ExcInternalError());
+
+  // if the properties are temperature dependent, then initialize the
+  // element property cards at the element average temperature
+  if (this->analysis_discipline.checkPropertyDependenceOnTemperature())
+    {
+      // get the load case number and the dof values
+      static unsigned int n_nodes;
+      n_nodes = this->getNNodes();
+      static std::map<unsigned int, double> local_param_map;
+    
+      static DenseVector<double> nodal_temperature(n_nodes);
+      switch (nodal_temperature.size() - n_nodes)
+	{
+	case 0:
+	  // keep going
+	  break;
+        
+	default:
+	  nodal_temperature.resize(n_nodes);
+	}
+    
+      this->extractNodalTemperatureVectorFromLoads(nodal_temperature, false);
+    
+      // now calculate the average
+      static double temp;
+      temp = 0.0;
+    
+      for (unsigned int i=0; i < n_nodes; i++)
+	temp += nodal_temperature(i);
+    
+      temp /= (1.0 * n_nodes);
+    
+      local_param_map[Property::TEMPERATURE::num()] = temp; 
+      this->elem_property_card->reinitElemAndMaterialCardForLocalParameters(&local_param_map);
+    }
+  else
+    {
+      this->elem_property_card->reinitElemAndMaterialCardForLocalParameters();
+    }
+  
+  this->property_card_initialized = true;
+}
+
+
+void
+FESystemElem::StructuralElem::clearPropertyCardInitialization()
+{
+  static std::vector<unsigned int> param_vec;
+  static std::vector<unsigned int> no_param_vec;
+  
+  if (param_vec.size() != 0)
+    param_vec.push_back(Property::TEMPERATURE::num());
+  
+  // if the properties are temperature dependent, then initialize the
+  // element property cards at the element average temperature
+  if (this->analysis_discipline.checkPropertyDependenceOnTemperature())
+    {
+      this->elem_property_card->partialClearElemAndMaterialCardLocalParameterInitialization
+	(param_vec);
+    }
+  else
+    {
+      this->elem_property_card->partialClearElemAndMaterialCardLocalParameterInitialization
+	(no_param_vec);
+    }
+  
+  this->property_card_initialized = false;
+}
+
+
+
+void 
+FESystemElem::StructuralElem::extractNodalTemperatureVectorFromLoads
+(DenseVector<double>& temp_vec, 
+ bool sensitivity)
+{
+  Assert (this->nodal_loads != NULL, ExcInternalError());
+  if (sensitivity)
+    Assert(this->nodal_load_sens != NULL, ExcInternalError());
+  
+  unsigned int n_nodes;
+  n_nodes = this->getNNodes();
+  double val;
+  val = 0.0;
+
+  val = this->analysis_discipline.getFESystemController().
+    analysis_case->getRealParameter("REFERENCE_TEMP");
+
+  Assert(temp_vec.size() == n_nodes, ExcInternalError());
+  temp_vec.zero();
+  
+  Elem* elem = NULL;
+  unsigned int node_id = 0;
+  
+  elem = this->geometric_elems_for_DV_map[FESystemElem::BASE_ELEM::num()];
+  const MeshDS::FEMeshData &mesh_data = this->analysis_discipline.getAnalysisMeshData();
+  
+  std::map<unsigned int, std::map<unsigned int, const Loads::NodalLoadCombination*> >::const_iterator
+    elem_loads_it, elem_loads_end; 
+  
+  if (!sensitivity)
+    {
+      elem_loads_it = this->nodal_loads->find(NODAL_TEMPERATURE::num());
+      elem_loads_end = this->nodal_loads->end();
+    }
+  else
+    {
+    elem_loads_it = this->nodal_load_sens->find(NODAL_TEMPERATURE::num());
+    elem_loads_end = this->nodal_load_sens->end();
+    }
+  
+  if (elem_loads_it == elem_loads_end)
+    {
+      double set_val = sensitivity?0.0:val;
+      for (unsigned int i=0; i< n_nodes; i++)
+	temp_vec(i) = set_val;
+    }
+  else
+    {
+    std::map<unsigned int, const Loads::NodalLoadCombination*>::const_iterator node_it, node_end;
+    node_end = elem_loads_it->second.end();
+
+    for (unsigned int i=0; i < n_nodes; i++)
+      {
+      node_id = mesh_data.getForeignIDFromNode(elem->get_node(i));
+      node_it = elem_loads_it->second.find(node_id);
+      if (node_it == node_end)
+	temp_vec(i) = sensitivity?0.0:val;
+      else
+        temp_vec(i) = dynamic_cast<const Loads::NodalPointLoadCombination*>(node_it->second)->getValue(0);
+      }
+    }
+}
+
+

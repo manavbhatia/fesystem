@@ -1,0 +1,8 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$class_loads_1_1_elem_load_data_info.html#a775385895e7aabdc9c5dc1e81b6ad56f" title="Loads::ElemLoadDataInfo::getElemID" alt="" coords="624,5,869,33"/>
+<area shape="rect" id="node5" href="$class_loads_1_1_load_data_info_base.html#a1f0710e06ff745c44782be6c6edeb1e4" title="Loads::LoadDataInfoBase::getLoadCaseID" alt="" coords="609,57,884,85"/>
+<area shape="rect" id="node7" href="$class_load_case_base.html#a2aec7c5c87ca56abf4020e14108b9c63" title="fills the vector with the load set ID and its load factor" alt="" coords="607,109,886,137"/>
+<area shape="rect" id="node9" href="$class_loads_1_1_load_data_info_base.html#a0674106b5fc7b399a77deac3c5eae256" title="Loads::LoadDataInfoBase::getLoadNameEnumID" alt="" coords="589,161,904,189"/>
+<area shape="rect" id="node11" href="$class_load_set_base.html#a201d6264d050a98a4c0e42d30d209c3a" title="LoadSetBase::getLoadNameEnumID" alt="" coords="626,213,867,241"/>
+<area shape="rect" id="node13" href="$class_volume_load_set.html#aeaf8a965cd75ddc514bd2751370862ee" title="VolumeLoadSet::getLoadsForElement" alt="" coords="623,265,870,293"/>
+</map>

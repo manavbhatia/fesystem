@@ -1,0 +1,97 @@
+// !$*UTF8*$!
+{
+	08FB7793FE84155DC02AAC07 /* Project object */ = {
+		activeBuildConfigurationName = Debug;
+		activeTarget = D28A88AD04BDD90700651E21 /* libmesh */;
+		addToTargets = (
+			D28A88AD04BDD90700651E21 /* libmesh */,
+		);
+		codeSenseManager = 69CC598F0E5CE5C2004D4B64 /* Code sense */;
+		perUserDictionary = {
+			PBXPerProjectTemplateStateSaveDate = 256322984;
+			PBXWorkspaceStateSaveDate = 256322984;
+		};
+		sourceControlManager = 69CC598E0E5CE5C2004D4B64 /* Source Control */;
+		userBuildSettings = {
+		};
+	};
+	69CC598E0E5CE5C2004D4B64 /* Source Control */ = {
+		isa = PBXSourceControlManager;
+		fallbackIsa = XCSourceControlManager;
+		isSCMEnabled = 0;
+		scmConfiguration = {
+			repositoryName = libmesh;
+		};
+	};
+	69CC598F0E5CE5C2004D4B64 /* Code sense */ = {
+		isa = PBXCodeSenseManager;
+		indexTemplatePath = "";
+	};
+	69CC5CF10E5CE625004D4B64 /* enum_fe_family.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1218, 1008}}";
+			sepNavSelRange = "{1483, 5}";
+			sepNavVisRange = "{918, 1167}";
+			sepNavWindowFrame = "{{130, 25}, {1277, 743}}";
+		};
+	};
+	69CC5D090E5CE625004D4B64 /* fe_macro.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1218, 1358}}";
+			sepNavSelRange = "{1684, 5}";
+			sepNavVisRange = "{0, 2316}";
+			sepNavWindowFrame = "{{15, 130}, {1277, 743}}";
+		};
+	};
+	69CC5D8E0E5CE625004D4B64 /* petsc_matrix.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {697, 11998}}";
+			sepNavSelRange = "{0, 0}";
+			sepNavVisRange = "{1183, 1385}";
+			sepNavWindowFrame = "{{618, 51}, {756, 827}}";
+		};
+	};
+	69CC5D9D0E5CE625004D4B64 /* parallel.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {741, 27104}}";
+			sepNavSelRange = "{43758, 79}";
+			sepNavVisRange = "{45285, 1196}";
+			sepNavWindowFrame = "{{16, 29}, {800, 849}}";
+		};
+	};
+	69CC5E260E5CE625004D4B64 /* fe_base.C */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1218, 31234}}";
+			sepNavSelRange = "{2586, 5}";
+			sepNavVisRange = "{2100, 835}";
+			sepNavWindowFrame = "{{107, 46}, {1277, 743}}";
+		};
+	};
+	69CC5E2B0E5CE625004D4B64 /* fe_boundary.C */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1218, 11284}}";
+			sepNavSelRange = "{1957, 0}";
+			sepNavVisRange = "{934, 1490}";
+			sepNavWindowFrame = "{{38, 109}, {1277, 743}}";
+		};
+	};
+	69CC5E910E5CE625004D4B64 /* exodusII_io.C */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {687, 4872}}";
+			sepNavSelRange = "{7057, 0}";
+			sepNavVisRange = "{6212, 1714}";
+			sepNavWindowFrame = "{{380, 9}, {746, 863}}";
+		};
+	};
+	69CC5F390E5CE626004D4B64 /* string_to_enum.C */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1218, 6146}}";
+			sepNavSelRange = "{6291, 5}";
+			sepNavVisRange = "{5673, 1333}";
+			sepNavWindowFrame = "{{61, 88}, {1277, 743}}";
+		};
+	};
+	D28A88AD04BDD90700651E21 /* libmesh */ = {
+		activeExec = 0;
+	};
+}

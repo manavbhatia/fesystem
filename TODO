@@ -1,0 +1,174 @@
+$Id: TODO,v 1.6 2006-09-05 20:41:55 manav Exp $
+
+
+10/3: -- AnalysisDiscipline (done) -- LinearAnalysisDriver, NonlinearAnalysisDriver --
+FESystemController -- ThermalDiscipline
+	
+11/30: -- bug in property sensitivity analysis of convection load in thermal analysis. incorrect
+values are obtained -- bug in beam element. If a tip load is applied, the rotations obtained are
+correct, but the displacement values are off.
+
+12/5: -- there is a problem with the membrane element. If an unsymmetric load is applied, the
+calculated response is inaccurate.  The wierd thing is that the element stiffness matrices are all
+fine. Hence, the problem is coming in assembly onwards.  -- This has been checked, and the element
+matrices and rosponse has been compared with the obtained from NASTRAN.  The tri3 membrane element
+results correlate well with those from NASTRAN. However, the quad4 results are off.  The reason for
+this is unknown, but is being assumed to be due to a different formulation of the elements in
+NASTRAN. It may be that the results from the membrane element in FESystem will converge to that in
+NASTRAN.  -- things to be done: -- nonlinear -- sensitivity analysis -- interpolation -- model, with
+generation of input file for FESystem -- stress and heat flux
+
+12/6: -- for nonlinear solution, the "Solution" vector in the driver contains the delta_solution in
+NonlinearSolver. Hence, if the elem looks for the dof values in solution, it will get the wrong
+numbers. This has to be changed. 12/11: -- this problem was fixed. The Solution vector now contains
+the current solution of the system.
+
+12/10: -- the input from geometry will consist of the following parts: 1) A list of all points,
+lines and surfaces, and the sets to which they belong.  2) A file including the nodes, elements and
+the association of these elements with the geometric entities.  Here, an association will have to be
+made between line elements and line geometric entities. So, 1-D elements will belong to 1-D
+geometric entities, 2-D elements to 2-D geometric entities and so on for 3-D.  3) A list of sets
+whose elements will be included in the FE model.  4) A list of sets and their corresponding boundary
+conditions.  5) A list of sets and their corresponding elements.  -- To specify the boundary
+conditions,
+
+
+
+12/11: 
+-- the integration of the geometry processor, finite element analysis and sensitivity
+analysis will be based on the following:
+	 -- the input file should contain a list of design variables, both property and shape. For
+	 shape design variables, a new mesh will have to be generated for each variable, and this
+	 would need automatic execution of gmsh, and parsing of all files
+	 -- also, material properties will have to specified in the same file, or in a differnet
+	 file. If the later is used, then we can have a single file of material library, which can
+	 be used as a database for any analysis.
+	 -- complex loads will have to be automatically generated, but simple loads can be specified
+	 in the input file. However, if external loads are used, then a file of elem ID vs load will
+	 have to be provided. In any case, this can tentatively be kept to be handled by a code.
+	 
+-- hence, the following information is needed in the main input file;
+   -- material database file name
+   -- name of the shape model that will be generated. This is essentially the name of a specific
+.geo file, which will be run with the specified shape DV values. 
+   -- names of shape parameters and their values
+   -- all the data needed in the geometry configuration file:
+      -- name of geometry file (this name will be appended by the name/ID of DV to get the perturbed
+mesh file name). name of mesh file will be automatically assumed to be obtained from the geometry
+file name.
+     -- physical geometry sets
+     -- material sets
+     -- boundary condition sets
+     -- load sets
+   -- property dvs
+   -- shape dvs
+ 
+-- The prgram flow after this will be
+   -- read in the data
+   -- create the basic set of geometry variable values, and its perturbed sets
+   -- iterate over each such set, and write its values to a file which will be included by the
+geometry processor.
+   -- process the geometry, write the mesh, read it in, and create a vector of nodes for each DV
+ set. (duplicating the elems is not needed since the topology is assumed to be same).
+   -- process the loads.
+   -- write the fesystem input file
+      -- write all mesh
+      -- write loads for each DV (including BC)
+      -- write analysis load sets, load cases, and analysis case
+  -- next, the analysis can proceede as usual for FESystem
+
+
+12/12: 
+-- the nonlinear for 1-D has been tested. However, the sensitivity equations still need to be
+checked. There is a problem with the signs here. 
+
+
+12/14: 
+-- nonlinear-3D has also been tested for simple cases.  
+-- beam element gives good results for rotation dofs, but translation dofs are off for point
+loads. However, if a pure moment is applied, the displacements match exactly with those from
+NASTRAN. This needs to be sorted out. 
+
+
+12/16:
+-- the stiffness matrix is being stored in the database for each load
+case. This is not needed if the material properties are independent of
+temperatures. Hence, this is a place for optimization.
+
+
+02/05/06:
+
+-- once all analysis has been done, all solution vectors, stresses and sensitivity quuantities
+should be written to the log file. 
+-- write code for wing_box.C so that it writes mesh for a perturbed DV. 
+-- run the code for shape sensitivity analysis and verify the output.
+
+
+04/15/06:
+
+-- Transient solution:
+	-- global data storage, and element data storge need an additional time step number to
+	store the element or global level quantities. 
+	-- Load database needs some fix, since it stores loads as per time-instant in the map.
+	This is error prone due to precision errors. Hence, a more precide definition will be 
+	based on the time step number, with an associated time value. This is how it should be
+	stored in the map, however, it can take a real value to seek load value in the get method.
+	-- Elements need to provide the [C] matrix for thermal analysis and [M] and [C] for 
+	structural analysis
+
+
+05/27/06:
+	
+-- Following is the procedure that libMesh follows to prepare the mesh and matrices and dofs for an 
+   analysis:
+	-- once the nodes and elems have been added to the mesh, the method "MeshBase::prepare_for_use()"
+	   is called, which does the following:
+		-- renumbers all elems and nodes for the mesh so that they lie in a contiguous range
+		-- finds neighbors for all elemns in the mesh
+		-- partitions the mesh 
+	-- the method "prepare_for_use" is also called each time the mesh is modified due to automatic refinement
+	   Hence, the local element/node number to global mapping will have to be updated each time this operation
+	   is performed. 
+	-- once this is done, the DofMaps are created for each mesh, and are added to the mesh_list. The system number
+	   for each DofMap is set to 0.
+	-- for the analysis_driver and discipline, the analysis variables are added to the dof_map, which simply 
+	   adds it to the analysis_vectors in the DofMap, and no processing is done on it. 
+	-- then  the anlaysis_driver sets the number of systems for all dof_objects (nodes and elems), which for
+	   our analysis is 1. 
+	-- the dof_map is then told to distribute the dofs in either a variable or a node major format. This method
+	   sets up the dofs on each processor based on the elements that lie on each processor and the nodes that 
+      	   are connected to it. This also prepares send list for each processor, which is a list of dofs that the 
+	   elements on the individual processor are affected by. 
+	-- the dof_map then computes the sparsity_pattern, and asks each matrix that has been attached to the dof_map
+	   to update the informations, which the matrix uses to allocate space when they are created. 
+	-- then, the analysis_disciplines have to init the matrix, for which they attach the dof_map to the 
+	   matrix, and then call the init method on the matrix. This method gets the dof information from the 	
+	   dof_map and then creates the matrix data structure.
+
+-- To implement parallel support, following needs to the done for the code:
+	-- The mesh partitioning routine needs to be implementd, since the one provided by libMesh depends on 
+	   find_neighbors, which assumes a manifold mesh. Hence, to obtain the right connectivity between elements, 
+	   either a new find_neighbor needs to be implemented, or the entire partitioning routine needs to be
+	   implemented. 
+	
+
+06/23/06:
+-- To implement composite material support, create:
+	-- a Layer class that will store information about each individual layer, including:
+		-- material ID, orientation, thickness, area, inertia, distance from lay-up reference, etc.
+		-- all of these properties should be able to have a dependence on a parameter so that sensitivities
+	 	   can be calculated wrt to them. 
+	-- a Lay-Up class, which will store the Layers in the lay-up, and the distance of the lay-up reference, 
+	   from the element mean surface. 
+	-- the MaterialCard should be able to return the material tensor for a given orientation
+ 	-- obtain the element matrix/vector quantitiy relations for composite materials, and obtain the sensitivity
+	   quantities. This can get complicated. Since the sensitivity will not involve the orientation angle, 
+	   and that makes calculation of the material properties more involved. 
+     
+     
+07/06/06:
+-- One primary problem is in modeling sensitivity of tensor valued properties. For properties that are 
+   pure diagonal in nature, even the off-diagonal values will change due to the way it is modeled now. 
+   This cannot be allowed. Hence, it is important to allow:
+   -- either individual elements to have a functional dependence,
+   -- or the data to have a diagonal/etc structure.

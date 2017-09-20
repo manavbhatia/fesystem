@@ -1,0 +1,5 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$class_f_e_system_database_1_1_generic_data_info_base.html#ac1115d95573153291185f76a1540f0e1" title="sets the discipline enum ID" alt="" coords="357,5,763,33"/>
+<area shape="rect" id="node5" href="$class_f_e_system_database_1_1_generic_data_info_base.html#a700ae1ec3358b497305c2099fbf1cfea" title="sets the load case value, and also sets to true the boolean value of if_load_case_dependent" alt="" coords="380,57,740,85"/>
+<area shape="rect" id="node7" href="$class_f_e_system_database_1_1_generic_data_info_base.html#a117399f629d87ea1b646333d91dee39f" title="sets the name of the quantity" alt="" coords="392,109,728,137"/>
+</map>

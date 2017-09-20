@@ -1,0 +1,6 @@
+<map id="G" name="G">
+<area shape="rect" id="node5" href="$class_geometric_circular_arc.html" title="this class defines a geometric point" alt="" coords="4,161,152,189"/>
+<area shape="rect" id="node7" href="$class_geometric_elliptic_arc.html" title="this class defines a geometric point" alt="" coords="177,161,319,189"/>
+<area shape="rect" id="node9" href="$class_geometric_straight_line.html" title="this class defines a geometric point" alt="" coords="343,161,496,189"/>
+<area shape="rect" id="node2" href="$class_geometric_entity.html" title="this is a base class for all geometric entities" alt="" coords="190,6,305,34"/>
+</map>

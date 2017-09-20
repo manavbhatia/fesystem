@@ -1,0 +1,2205 @@
+Index: include/numerics/petsc_vector.h
+===================================================================
+--- include/numerics/petsc_vector.h	(revision 3286)
++++ include/numerics/petsc_vector.h	(working copy)
+@@ -291,8 +291,25 @@
+    * Fast equivalent to \p U.add(-1, V).
+    */
+   NumericVector<T> & operator -= (const NumericVector<T> &V);
++
++  /**
++	  * funtion to perform operations between a set and add operation.
++   */
++  virtual void perform_intermediate_vector_assembly(); 
++  
++  /**
++	  * read and Write the matrix to a binary file
++   */
++  virtual void write_to_binary_file(const std::string& file_name);
++  virtual void load_from_binary_file(const std::string& file_name);
++  
+     
+   /**
++   * Inverts all values of the vector
++   */
++  virtual void invert_values();
++
++  /**
+    * v(i) = value
+    */
+   void set (const unsigned int i, const T value);
+@@ -454,6 +471,13 @@
+   void print_matlab(const std::string name="NULL") const;
+ 
+   /**
++    * This method copies the nonzero structure and the processor distribution of the arguement vector.
++   * If the second arguement is true, it also copies the values.
++   */
++  virtual void duplicate_vector(const NumericVector<T>& vector, 
++                                const bool copy_values = false);
++
++  /**
+    * Creates a "subvector" from this vector using the rows indices
+    * of the "rows" array.
+    */
+@@ -831,8 +855,71 @@
+ }
+ 
+ 
++template <typename T>
++void PetscVector<T>::perform_intermediate_vector_assembly ()
++{
++	libmesh_assert (this->initialized());
++	
++	int ierr=0;
++	
++	ierr = VecAssemblyBegin(_vec);
++	CHKERRABORT(libMesh::COMM_WORLD,ierr);
++	ierr = VecAssemblyEnd(_vec);
++	CHKERRABORT(libMesh::COMM_WORLD,ierr);
++}
+ 
+ template <typename T>
++void PetscVector<T>::write_to_binary_file(const std::string& file_name)
++{
++	// create a PetscViewer, open the binary viewer, and write
++	int ierr;
++	
++	PetscViewer binary_viewer;
++	
++	ierr = PetscViewerBinaryOpen( libMesh::COMM_WORLD,
++								  file_name.c_str(),
++								  FILE_MODE_WRITE,
++								  &binary_viewer);
++	CHKERRABORT(libMesh::COMM_WORLD,ierr);
++	
++	this->close();
++	
++	ierr = VecView(this->_vec, binary_viewer);
++	CHKERRABORT(libMesh::COMM_WORLD,ierr);
++	
++	ierr = PetscViewerDestroy(binary_viewer);
++	CHKERRABORT(libMesh::COMM_WORLD,ierr);
++}
++
++
++
++template <typename T>
++void PetscVector<T>::load_from_binary_file(const std::string& file_name)
++{
++	// create a PetscViewer, open the binary viewer, and write
++	int ierr;
++	
++	PetscViewer binary_viewer;
++	
++	ierr = PetscViewerBinaryOpen( libMesh::COMM_WORLD,
++								  file_name.c_str(),
++								  FILE_MODE_READ,
++								  &binary_viewer);
++	CHKERRABORT(libMesh::COMM_WORLD,ierr);
++	
++	ierr = VecLoad(binary_viewer, VECSEQ,&(this->_vec));
++	CHKERRABORT(libMesh::COMM_WORLD,ierr);
++	
++	ierr = PetscViewerDestroy(binary_viewer);
++	CHKERRABORT(libMesh::COMM_WORLD,ierr);
++
++	// finally set the initialized tag to true
++	this->_is_initialized = true;
++}
++
++
++
++template <typename T>
+ inline
+ AutoPtr<NumericVector<T> > PetscVector<T>::clone () const
+ {
+Index: include/numerics/petsc_matrix.h
+===================================================================
+--- include/numerics/petsc_matrix.h	(revision 3246)
++++ include/numerics/petsc_matrix.h	(working copy)
+@@ -33,6 +33,7 @@
+ #include "sparse_matrix.h"
+ #include "parallel.h"
+ #include "petsc_macro.h"
++#include "petsc_vector.h"
+ 
+ // Macro to identify and debug functions which should be called in
+ // parallel on parallel matrices but which may be called in serial on
+@@ -53,6 +54,7 @@
+ 
+ // Forward Declarations
+ template <typename T> class DenseMatrix;
++template <typename T> class NumericVector;
+ 
+ 
+ /**
+@@ -130,6 +132,31 @@
+   void init ();
+   
+   /**
++   * This method copies values of the matrix, assuming the same non-zero 
++   * matrix structure.
++   */
++  virtual void copy_matrix(const SparseMatrix<T>& matrix); 
++
++  /**
++   * This method copies the nonzero structure and the processor distribution of the arguement matrix.
++   * If the second arguement is true, it also copies the values. The matrix provided in the arguement 
++   * should be a PetscMatrix object.
++   */
++  virtual void duplicate_matrix(const SparseMatrix<T>& matrix, 
++                                const bool copy_values = false);
++  
++   /**
++    * The \p PetscMatrix needs the full sparsity pattern.
++    */ 
++  bool need_full_sparsity_pattern () const 
++  { return true; }
++
++  /**
++   * Updates the matrix sparsity pattern. 
++   */
++  virtual void update_sparsity_pattern (const SparsityPattern::Graph &);
++
++  /**
+    * Release all memory and return
+    * to a state just like after
+    * having called the default
+@@ -228,6 +255,61 @@
+   void add (const T a, SparseMatrix<T> &X);
+     
+   /**
++   * Add a column vector to the matrix, scaled by the given factor, 
++   * and ignores any new outside the sparsity pattern, if the last 
++   * arguement is true
++   */
++  virtual void addColumnVector (const T, 
++                                const unsigned int col_num,
++                                NumericVector<T> &,
++                                const bool ignore_new_entries);
++  
++  
++  /**
++   * funtion to shift the diagonal values by the given value
++   */
++  virtual void shift(const T  num);
++
++  /**
++   * function to scale the matrix by a left diagonal matrix stored as a vector
++   * A = D * A
++   */
++  virtual void leftDiagonalScale( NumericVector<T>& vec);
++  
++  
++  /**
++   * function to scale the matrix by a left diagonal matrix stored as a vector
++   * A = A * D
++   */
++  virtual void rightDiagonalScale( NumericVector<T>& vec);
++  
++  
++  /**
++   * function will diagonalize the matrix by adding all the row entries 
++   * and return the value in a vector
++   */
++  virtual void diagonalize( NumericVector<T>& vec);
++  
++  /**
++   * funtion to perform operations between a set and add operation.
++   */
++  virtual void perform_intermediate_matrix_assembly();
++  
++  /**
++   * function to zero the specified rows of a matrix
++   */
++  virtual void zero_rows(std::vector<unsigned int>& , double );
++  
++  /**
++   * multiply matrix with numeric vector. The matrix is multiplied with the 
++   * first input arguement and stored in the second
++   */
++  virtual void multiply_vector(NumericVector<T>& , NumericVector<T>&);
++  
++  
++  virtual void scale(double );
++  
++  /**
+    * Return the value of the entry
+    * \p (i,j).  This may be an
+    * expensive operation and you
+@@ -299,6 +381,13 @@
+   void print_matlab(const std::string name="NULL") const;
+ 
+   /**
++   * read and Write the matrix to a binary file
++   */
++  virtual void write_to_binary_file(const std::string& file_name) const;
++  virtual void load_from_binary_file(const std::string& file_name);
++  
++  
++  /**
+    * Copies the diagonal part of the matrix into \p dest.
+    */
+   virtual void get_diagonal (NumericVector<T>& dest) const;
+@@ -315,6 +404,14 @@
+    */
+   Mat mat () { libmesh_assert (_mat != NULL); return _mat; }
+ 
++  /**
++   * Returns the raw PETSc matrix context pointer.  Note this is generally
++   * not required in user-level code. Just don't do anything crazy like
++   * calling MatDestroy()!
++   */
++  Mat* mat_ptr () { return &_mat; }
++  
++
+ protected:
+ 
+   /**
+@@ -556,9 +653,134 @@
+ 
+ 
+ 
++template <typename T>
++inline
++void PetscMatrix<T>::scale(double factor)
++{
++  int ierr = 0;
++  
++  ierr = MatScale(_mat,factor);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++}
+ 
+ template <typename T>
+ inline
++void PetscMatrix<T>::perform_intermediate_matrix_assembly()
++{
++  int ierr=0;
++  
++  ierr = MatAssemblyBegin (_mat, MAT_FLUSH_ASSEMBLY);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++  ierr = MatAssemblyEnd   (_mat, MAT_FLUSH_ASSEMBLY);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++}
++
++
++
++template <typename T>
++inline
++void PetscMatrix<T>::zero_rows(std::vector<unsigned int>& rows, double diag_value)
++{
++  int ierr=0, num_rows=0;
++  
++  num_rows = rows.size();
++  
++  int* row_vector = new int[num_rows];
++  
++  for (int i=0; i<num_rows; i++)
++    {
++      row_vector[i] = rows[i];
++    }
++  
++  this->close();
++  
++  ierr = MatZeroRows (_mat, num_rows, row_vector, diag_value);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++  
++  delete [] row_vector;
++}
++
++
++
++template <typename T>
++inline
++void PetscMatrix<T>::multiply_vector(NumericVector<T>& input_vec, NumericVector<T>& result_vec)
++{
++	PetscVector<T>* inp_vec = dynamic_cast<PetscVector<T>*>(&input_vec);
++	PetscVector<T>* res_vec = dynamic_cast<PetscVector<T>*>(&result_vec);
++	
++	int ierr=0;
++	
++	// first make sure that the matrix and the vector have been 
++	// assemble
++  
++	this->close();
++	inp_vec->close();
++	
++	// now ask Petsc to multiply the matrix and the vector
++	ierr = MatMult(_mat, inp_vec->vec(), res_vec->vec());
++	CHKERRABORT(libMesh::COMM_WORLD,ierr);
++}
++
++
++
++
++
++template <typename T>
++void PetscMatrix<T>::write_to_binary_file(const std::string& file_name) const
++{
++	// create a PetscViewer, open the binary viewer, and write
++	int ierr;
++	
++	PetscViewer binary_viewer;
++	
++	ierr = PetscViewerBinaryOpen( libMesh::COMM_WORLD,
++                               file_name.c_str(),
++                               FILE_MODE_WRITE,
++                               &binary_viewer);
++	CHKERRABORT(libMesh::COMM_WORLD,ierr);
++  
++	this->close();
++	
++	ierr = MatView(this->_mat, binary_viewer);
++	CHKERRABORT(libMesh::COMM_WORLD,ierr);
++	
++	ierr = PetscViewerDestroy(binary_viewer);
++	CHKERRABORT(libMesh::COMM_WORLD,ierr);
++}
++
++
++
++
++
++template <typename T>
++void PetscMatrix<T>::load_from_binary_file(const std::string& file_name)
++{
++	// create a PetscViewer, open the binary viewer, and write
++	int ierr;
++	
++	PetscViewer binary_viewer;
++	
++	ierr = PetscViewerBinaryOpen( libMesh::COMM_WORLD,
++                               file_name.c_str(),
++                               FILE_MODE_READ,
++                               &binary_viewer);
++	CHKERRABORT(libMesh::COMM_WORLD,ierr);
++  
++	ierr = MatLoad(binary_viewer, MATSEQAIJ,&(this->_mat));
++	CHKERRABORT(libMesh::COMM_WORLD,ierr);
++	
++	ierr = PetscViewerDestroy(binary_viewer);
++	CHKERRABORT(libMesh::COMM_WORLD,ierr);
++	
++	// finally set the initialized tag to true
++	this->_is_initialized = true;
++}
++
++
++
++template <typename T>
++inline
+ T PetscMatrix<T>::operator () (const unsigned int i,
+ 			       const unsigned int j) const
+ {
+Index: include/numerics/distributed_vector.h
+===================================================================
+--- include/numerics/distributed_vector.h	(revision 3286)
++++ include/numerics/distributed_vector.h	(working copy)
+@@ -258,7 +258,33 @@
+    */
+   NumericVector<T> & operator -= (const NumericVector<T> &V);
+     
++  virtual void perform_intermediate_vector_assembly ();
++  
+   /**
++	  * read and Write the matrix to a binary file
++   */
++  virtual void write_to_binary_file(const std::string& file_name) 
++  {
++    (void) file_name;
++    abort();
++  }
++  
++  virtual void load_from_binary_file(const std::string& file_name)
++  {
++    (void) file_name;
++    abort();
++  }
++  
++  /**
++   * Inverts all values of the vector
++   */
++  virtual void invert_values()
++  {
++    abort();
++  }
++  
++  
++  /**
+    * v(i) = value
+    */
+   void set (const unsigned int i, const T value);
+@@ -406,6 +432,13 @@
+ 			const unsigned int proc_id=0) const;
+     
+   /**
++    * This method copies the nonzero structure and the processor distribution of the arguement vector.
++   * If the second arguement is true, it also copies the values.
++   */
++  virtual void duplicate_vector(const NumericVector<T>& vector, 
++                                const bool copy_values = false){libmesh_assert(false);}
++
++  /**
+    * Computes the pointwise (i.e. component-wise) product of \p vec1
+    * and \p vec2 and stores the result in \p *this.
+    */
+@@ -749,6 +782,12 @@
+ }
+ 
+ 
++template <typename T> 
++inline
++void DistributedVector<T>::perform_intermediate_vector_assembly ()
++{
++	// nothing to be done for this vector
++}
+ 
+ template <typename T>
+ inline
+Index: include/numerics/dense_matrix_base.h
+===================================================================
+--- include/numerics/dense_matrix_base.h	(revision 3246)
++++ include/numerics/dense_matrix_base.h	(working copy)
+@@ -134,7 +134,15 @@
+     ScalarTraits<T2>::value, void >::type
+   add (const T2 factor,
+        const DenseMatrixBase<T3>& mat);
+-   
++  
++
++  /**
++   * Adds \p factor to every element in the matrix.
++   */
++  void add_transpose (const T factor,
++		      const DenseMatrixBase<T>& mat);
++
++ 
+ protected:
+   
+   /**
+@@ -192,5 +200,19 @@
+ }
+ 
+ 
++template<typename T>
++inline
++void DenseMatrixBase<T>::add_transpose (const T factor,
++					const DenseMatrixBase<T>& mat)
++{
++  libmesh_assert (this->m() == mat.n());
++  libmesh_assert (this->n() == mat.m());
++
++  for (unsigned int j=0; j<this->n(); j++)
++    for (unsigned int i=0; i<this->m(); i++)
++      this->el(i,j) += factor*mat.el(j,i);
++}
++
++
+ #endif // #ifndef __dense_matrix_base_h__
+ 
+Index: include/numerics/dense_vector.h
+===================================================================
+--- include/numerics/dense_vector.h	(revision 3286)
++++ include/numerics/dense_vector.h	(working copy)
+@@ -94,6 +94,12 @@
+   T & operator() (const unsigned int i);
+ 
+   /**
++    * sets the \p (i,j) element of the vector
++   */
++  void  set(const unsigned int i, const T val);
++
++
++  /**
+    * @returns the \p (i) element of the vector.
+    */
+   virtual T el(const unsigned int i) const { return (*this)(i); }
+@@ -317,6 +323,18 @@
+ 
+ template<typename T>
+ inline
++void DenseVector<T>::set(const unsigned int i, const T val)
++{
++  libmesh_assert (i < _val.size());
++  
++  _val[i] = val; 
++}
++
++
++
++
++template<typename T>
++inline
+ void DenseVector<T>::scale (const T factor)
+ {
+   for (unsigned int i=0; i<_val.size(); i++)
+Index: include/numerics/sparse_matrix.h
+===================================================================
+--- include/numerics/sparse_matrix.h	(revision 3246)
++++ include/numerics/sparse_matrix.h	(working copy)
+@@ -35,6 +35,7 @@
+ 
+ // forward declarations
+ template <typename T> class SparseMatrix;
++template <typename T> class NumericVector;
+ template <typename T> class DenseMatrix;
+ template <typename T> inline std::ostream& operator << (std::ostream& os, const SparseMatrix<T>& m);
+ class DofMap;
+@@ -95,11 +96,19 @@
+   virtual bool initialized() const { return _is_initialized; }
+ 
+   /**
++   * an external app tells the matrix that this has been initialized. Be very careful while using this
++   */
++  virtual void initialized_matrix_externally() { libmesh_assert(!this->_is_initialized);
++  this->_is_initialized = true; }
++  
++  
++  /**
+    * Get a pointer to the \p DofMap to use.
+    */
+   void attach_dof_map (const DofMap& dof_map)
+   { _dof_map = &dof_map; }
+-
++  
++  
+   /**
+    * \p returns true if this sparse matrix format needs to be fed the 
+    * graph of the sparse matrix.  This is true in the case of the \p LaspackMatrix, 
+@@ -116,6 +125,20 @@
+    * not overload this method.
+    */
+   virtual void update_sparsity_pattern (const SparsityPattern::Graph &) {}
++
++  /**
++   * This method copies values of the matrix, assuming the same non-zero 
++   * matrix structure.
++   */
++  virtual void copy_matrix(const SparseMatrix<T>& matrix) = 0;
++
++  /**
++    * This method copies the nonzero structure and the processor distribution of the arguement matrix.
++     * If the second arguement is true, it also copies the values.
++     */
++    virtual void duplicate_matrix(const SparseMatrix<T>& matrix, 
++                                  const bool copy_values = false) = 0;
++    
+   
+   /**
+    * Initialize a Sparse matrix that is of global
+@@ -228,6 +251,70 @@
+   virtual void add (const T, SparseMatrix<T> &) = 0;
+ 
+   /**
++    * Add a column vector to the matrix, scaled by the given factor, 
++   * and ignores any new outside the sparsity pattern, if the last 
++   * arguement is true
++   */
++  virtual void addColumnVector (const T, 
++                                const unsigned int col_num,
++                                NumericVector<T> &,
++                                const bool ignore_new_entries) = 0;
++
++  
++  /**
++   * funtion to shift the diagonal values by the given value
++   */
++  virtual void shift(const T  num) = 0;
++
++  /**
++   * function to scale the matrix by a left diagonal matrix stored as a vector
++   * A = D * A
++   */
++  virtual void leftDiagonalScale( NumericVector<T>& vec) = 0;
++  
++
++  /**
++   * function to scale the matrix by a left diagonal matrix stored as a vector
++   * A = A * D
++   */
++  virtual void rightDiagonalScale( NumericVector<T>& vec) = 0;
++  
++
++  /**
++   * function will diagonalize the matrix by adding all the row entries 
++   * and return the value in a vector
++   */
++  virtual void diagonalize( NumericVector<T>& vec) = 0;
++  
++  
++  /**
++	* funtion to perform operations between a set and add operation.
++   */
++  virtual void perform_intermediate_matrix_assembly() = 0;
++  
++  /**
++	  * function to zero the specified rows of a matrix
++   */
++  virtual void zero_rows(std::vector<unsigned int>& , double ) = 0;
++  
++
++  /// returns a constant reference to the dof map of this matrix
++  inline const DofMap& get_dof_map() const;
++  
++  /**
++	* multiply matrix with numeric vector. The matrix is multiplied with the 
++   * first input arguement and stored in the second
++   */
++  virtual void multiply_vector(NumericVector<T>& , NumericVector<T>&) = 0;
++  
++  
++  /**
++	* scale the elements of the matrix with the given factor
++   */
++  virtual void scale(double ) =0;
++
++
++  /**
+    * Return the value of the entry
+    * \p (i,j).  This may be an
+    * expensive operation and you
+@@ -287,6 +374,12 @@
+   void print(std::ostream& os=std::cout) const;
+ 
+   /**
++	* read and Write the matrix to a binary file
++   */
++  virtual void write_to_binary_file(const std::string& file_name) const =0;
++  virtual void load_from_binary_file(const std::string& file_name) =0;
++
++  /**
+    * Same as the print method above, but allows you
+    * to print to a stream in the standard syntax.
+    */
+@@ -450,4 +543,15 @@
+ 
+ 
+ 
++template <typename T>
++inline const DofMap& 
++SparseMatrix<T>::get_dof_map() const
++{
++  libmesh_assert(this->_dof_map != NULL);
++  return *(this->_dof_map);
++}
++
++
++
++
+ #endif // #ifndef __sparse_matrix_h__
+Index: include/numerics/dense_matrix.h
+===================================================================
+--- include/numerics/dense_matrix.h	(revision 3246)
++++ include/numerics/dense_matrix.h	(working copy)
+@@ -106,6 +106,9 @@
+    */
+   virtual void right_multiply (const DenseMatrixBase<T>& M3);
+   
++  virtual void right_multiply_vector(const DenseVector<T>& , DenseVector<T>& ) const;
++  virtual void left_multiply_vector(const DenseVector<T>& , DenseVector<T>& ) const;
++
+   /**
+    * Assignment operator.
+    */
+Index: include/numerics/numeric_vector.h
+===================================================================
+--- include/numerics/numeric_vector.h	(revision 3286)
++++ include/numerics/numeric_vector.h	(working copy)
+@@ -495,12 +495,39 @@
+    */
+   virtual void print(std::ostream& os=std::cout) const;
+ 
++   /**
++	  * funtion to perform operations between a set and add operation.
++   */
++  virtual void perform_intermediate_vector_assembly() = 0;
++  
++ 
++
+   /**
++	  * read and Write the vector to a binary file
++   */
++  virtual void write_to_binary_file(const std::string& file_name)  =0;
++  virtual void load_from_binary_file(const std::string& file_name) =0;
++  
++  /**
++   * Inverts all values of the vector
++   */
++  virtual void invert_values() = 0;
++  
++  
++  /**
+    * Prints the global contents of the vector to the screen.
+    */
+   virtual void print_global(std::ostream& os=std::cout) const;
+ 
+   /**
++    * This method copies the nonzero structure and the processor distribution of the arguement vector.
++   * If the second arguement is true, it also copies the values.
++   */
++  virtual void duplicate_vector(const NumericVector<T>& vector, 
++                                const bool copy_values = false) = 0;
++
++
++  /**
+    * Same as above but allows you to use stream syntax.
+    */
+   friend std::ostream& operator << (std::ostream& os, const NumericVector<T>& v)
+Index: include/enums/enum_fe_family.h
+===================================================================
+--- include/enums/enum_fe_family.h	(revision 3246)
++++ include/enums/enum_fe_family.h	(working copy)
+@@ -43,7 +43,8 @@
+ 
+ 		 // discontinuous, in global coordinates
+ 		 XYZ          = 5,
+-
++		 BATOZ        = 6,
++    BCIZ        = 7,
+ 		 // infinite element stuff
+ 		 INFINITE_MAP = 11,     //   for 1/r-map
+ 		 JACOBI_20_00 = 12,     //   i_max = 19
+Index: include/base/dof_map.h
+===================================================================
+--- include/base/dof_map.h	(revision 3286)
++++ include/base/dof_map.h	(working copy)
+@@ -274,6 +274,16 @@
+    */
+   void compute_sparsity (const MeshBase&);
+ 
++  /** 
++   * @returns \p SparsityPattern::Graph object of this \p DofMap
++   */
++  const SparsityPattern::Graph& get_sparsity_pattern() const
++  {
++    libmesh_assert(this->_sp.get() != NULL);
++    return this->_sp->sparsity_pattern;
++  }
++  
++  
+   /**
+    * Returns a constant reference to the \p _send_list for this processor.  The
+    * \p _send_list contains the global indices of all the variables in the
+@@ -822,6 +832,11 @@
+   PeriodicBoundaries _periodic_boundaries;
+ #endif
+ 
++  /**
++   * sparsity pattern graph object for this dof map
++   */
++  AutoPtr<SparsityPattern::Build> _sp;
++  
+   friend class SparsityPattern::Build;
+ };
+ 
+Index: include/fe/fe_macro.h
+===================================================================
+--- include/fe/fe_macro.h	(revision 3246)
++++ include/fe/fe_macro.h	(working copy)
+@@ -38,7 +38,9 @@
+                                template class FE< (_dim), HIERARCHIC>;   \
+                                template class FE< (_dim), LAGRANGE>;   \
+                                template class FE< (_dim), MONOMIAL>;   \
+-                               template class FE< (_dim), XYZ>
++                               template class FE< (_dim), XYZ>; \
++                               template class FE< (_dim), BATOZ>;\
++                               template class FE< (_dim), BCIZ>
+ 
+ #define INSTANTIATE_IMAP(_dim) \
+   template void FE<_dim,CLOUGH>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool); \
+@@ -46,7 +48,10 @@
+   template void FE<_dim,HIERARCHIC>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool);\
+   template void FE<_dim,LAGRANGE>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool);\
+   template void FE<_dim,MONOMIAL>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool);\
+-  template void FE<_dim,XYZ>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool)
++  template void FE<_dim,XYZ>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool);\
++template void FE<_dim,BATOZ>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool);\
++template void FE<_dim,BCIZ>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool)
++
+  
+ #else //LIBMESH_ENABLE_HIGHER_ORDER_SHAPES
+ 
+@@ -57,7 +62,9 @@
+                                template class FE< (_dim), MONOMIAL>;   \
+                                template class FE< (_dim), BERNSTEIN>;     \
+                                template class FE< (_dim), SZABAB>;     \
+-                               template class FE< (_dim), XYZ>
++                               template class FE< (_dim), XYZ>;  \
++                               template class FE< (_dim), BATOZ>;\
++                               template class FE< (_dim), BCIZ>
+ 
+ #define INSTANTIATE_IMAP(_dim) \
+   template void  FE<_dim,CLOUGH>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool); \
+@@ -67,7 +74,9 @@
+   template void  FE<_dim,MONOMIAL>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool);\
+   template void  FE<_dim,BERNSTEIN>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool);\
+   template void  FE<_dim,SZABAB>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool);\
+-  template void  FE<_dim,XYZ>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool)
++  template void  FE<_dim,XYZ>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool);\
++template void  FE<_dim,BATOZ>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool);\
++template void  FE<_dim,BCIZ>::inverse_map(const Elem*,const std::vector<Point>&,std::vector<Point>&,Real,bool)
+ 
+ #endif //LIBMESH_ENABLE_HIGHER_ORDER_SHAPES
+ 
+Index: src/utils/string_to_enum.C
+===================================================================
+--- src/utils/string_to_enum.C	(revision 3286)
++++ src/utils/string_to_enum.C	(working copy)
+@@ -233,6 +233,8 @@
+ 	fefamily_to_enum["HIERARCHIC"  ]=HIERARCHIC;
+ 	fefamily_to_enum["MONOMIAL"    ]=MONOMIAL;
+ 	fefamily_to_enum["XYZ"         ]=XYZ;
++  fefamily_to_enum["BATOZ"       ]=BATOZ;
++  fefamily_to_enum["BCIZ"       ]=BCIZ;
+ 	fefamily_to_enum["BERNSTEIN"   ]=BERNSTEIN;
+ 	fefamily_to_enum["SZABAB"      ]=SZABAB;
+ 	fefamily_to_enum["INFINITE_MAP"]=INFINITE_MAP;
+Index: src/numerics/dense_matrix.C
+===================================================================
+--- src/numerics/dense_matrix.C	(revision 3246)
++++ src/numerics/dense_matrix.C	(working copy)
+@@ -194,8 +194,40 @@
+ }
+ 
+ 
++template<typename T>
++void DenseMatrix<T>::right_multiply_vector(const DenseVector<T>& input, DenseVector<T>& result) const
++{
++	libmesh_assert (this->_n == input.size());
++	libmesh_assert (this->_m == result.size());
++	
++	result.zero();
++	
++	for (unsigned int row_it=0; row_it<this->_m; row_it++)
++		for (unsigned int col_it=0; col_it<this->_n; col_it++)
++			result(row_it) += this->el(row_it,col_it) * input(col_it);
++}
+ 
++
++
++
++
+ template<typename T>
++void DenseMatrix<T>::left_multiply_vector(const DenseVector<T>& input, DenseVector<T>& result) const
++{
++	libmesh_assert (this->_m == input.size());
++	libmesh_assert (this->_n == result.size());
++	
++	result.zero();
++	
++	for (unsigned int col_it=0; col_it<this->_n; col_it++)
++		for (unsigned int row_it=0; row_it<this->_m; row_it++)
++			result(col_it) += this->el(row_it,col_it) * input(row_it);
++}
++
++
++
++
++template<typename T>
+ void DenseMatrix<T>::lu_solve (DenseVector<T>& b,
+ 			       DenseVector<T>& x,
+ 			       const bool partial_pivot)
+Index: src/numerics/petsc_vector.C
+===================================================================
+--- src/numerics/petsc_vector.C	(revision 3286)
++++ src/numerics/petsc_vector.C	(working copy)
+@@ -993,9 +993,49 @@
+ 
+ 
+ 
++template <typename T>
++void PetscVector<T>::invert_values()
++{
++  libmesh_assert (this->initialized());
++  
++  PetscErrorCode ierr = 0;
++  ierr = VecReciprocal(this->_vec);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++  this->perform_intermediate_vector_assembly();
++}
+ 
+ 
+ template <typename T>
++void PetscVector<T>::duplicate_vector(const NumericVector<T>& vector, 
++                                      const bool copy_values)
++{
++  // make sure that this vector is not initialized, since the data structure will be created for 
++  // for this vector
++  libmesh_assert (!this->initialized());
++  
++  Vec source_vec = dynamic_cast<PetscVector<T>& >(const_cast<NumericVector<T>&> (vector)).vec();
++  PetscErrorCode ierr = 0;
++  
++  ierr = VecDuplicate(source_vec, &this->_vec);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++  
++  this->_is_initialized = true;
++
++  if (copy_values)
++    {
++    ierr = VecCopy(source_vec, this->_vec);
++    CHKERRABORT(libMesh::COMM_WORLD,ierr);
++    }
++  else 
++    this->zero();
++  
++  this->perform_intermediate_vector_assembly();
++}
++
++
++
++
++template <typename T>
+ void PetscVector<T>::create_subvector(NumericVector<T>& subvector,
+ 				      const std::vector<unsigned int>& rows) const
+ {
+Index: src/numerics/petsc_matrix.C
+===================================================================
+--- src/numerics/petsc_matrix.C	(revision 3246)
++++ src/numerics/petsc_matrix.C	(working copy)
+@@ -170,12 +170,127 @@
+              CHKERRABORT(libMesh::COMM_WORLD,ierr);
+     }
+ 
++  // now update the sparsity pattern
++  const SparsityPattern::Graph& sparsity_pattern =
++  this->_dof_map->get_sparsity_pattern();
++  this->update_sparsity_pattern(sparsity_pattern);
++
+   this->zero();
+ }
+ 
+ 
++template <typename T>
++void PetscMatrix<T>::copy_matrix(const SparseMatrix<T>& matrix)
++{
++  // make sure that this matrix is not initialized, since the data structure will be created for 
++  // for this matrix.
++  libmesh_assert (this->initialized());
++  //assert (this->_dof_map == &(matrix.get_dof_map()));
++  
++  Mat source_matrix = dynamic_cast<PetscMatrix<T>& >
++  (const_cast<SparseMatrix<T>&> (matrix)).mat();
++  PetscErrorCode ierr = 0;
++  ierr = MatCopy(source_matrix, this->_mat, SAME_NONZERO_PATTERN); 
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++  this->perform_intermediate_matrix_assembly();
++}
+ 
++
++
+ template <typename T>
++void PetscMatrix<T>::duplicate_matrix(const SparseMatrix<T>& matrix, 
++                                      const bool copy_values)
++{
++  // make sure that this matrix is not initialized, since the data structure will be created for 
++  // for this matrix.
++  libmesh_assert (!this->initialized());
++//  libmesh_assert (this->_dof_map == NULL);
++//  
++//  this->_dof_map = &(matrix.get_dof_map());
++  
++  Mat source_matrix = dynamic_cast<PetscMatrix<T>& >
++    (const_cast<SparseMatrix<T>&> (matrix)).mat();
++  PetscErrorCode ierr = 0;
++  
++  if (copy_values)
++    ierr = MatDuplicate(source_matrix, MAT_COPY_VALUES, &this->_mat);
++  else
++    ierr = MatDuplicate(source_matrix, MAT_DO_NOT_COPY_VALUES, &this->_mat);
++  
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++
++  this->perform_intermediate_matrix_assembly();
++  
++  this->_is_initialized = true;
++}
++
++
++template <typename T>
++void PetscMatrix<T>::update_sparsity_pattern 
++(const SparsityPattern::Graph &sparsity_pattern)
++{
++  // make sure that the matrix has been initialized
++  if (!this->initialized()) this->init();
++  unsigned int first_local_dof = this->_dof_map->first_dof();
++  unsigned int last_local_dof = this->_dof_map->last_dof();
++  
++#ifdef DEBUG
++  libmesh_assert ((last_local_dof - first_local_dof + 1) == sparsity_pattern.size());
++  
++  // it is assumed that the values are sorted, but it can be checked for debugging
++  for (unsigned int i=0; i < sparsity_pattern.size(); i++)
++    {
++      for (unsigned int j=1; j < sparsity_pattern[i].size(); j++)
++        libmesh_assert (sparsity_pattern[i][j-1] < sparsity_pattern[i][j]);
++    }
++#endif
++  
++  
++  PetscErrorCode ierr=0;
++  std::vector<double> vals;
++  unsigned int row_id = 0;
++  
++  ierr = MatSetOption (_mat, MAT_YES_NEW_NONZERO_LOCATIONS);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++  
++  // iterate over all rows, and add the entries to the 
++  for (unsigned int i=0; i < sparsity_pattern.size(); i++)
++    {
++      if (vals.size() != sparsity_pattern[i].size())
++        {
++          vals.resize(sparsity_pattern[i].size());
++          std::fill(vals.begin(), vals.end(), 1.0);
++        }
++      
++      row_id = first_local_dof + i;
++      
++      // now tell the matrix to set the values for this row
++      ierr = MatSetValues (_mat,
++                           1, (PetscInt*) &row_id,
++                           sparsity_pattern[i].size(), (PetscInt*) &sparsity_pattern[i][0],
++                           (PetscScalar*) &vals[0], INSERT_VALUES);
++      CHKERRABORT(libMesh::COMM_WORLD,ierr);
++    }
++  
++  ierr = MatSetOption (_mat, MAT_NEW_NONZERO_LOCATION_ERR);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++  
++  ierr = MatSetOption (_mat, MAT_KEEP_ZEROED_ROWS);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++  
++  // finally, call the assemble functions
++  ierr = MatAssemblyBegin (_mat, MAT_FLUSH_ASSEMBLY);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++  
++  ierr = MatAssemblyEnd (_mat, MAT_FLUSH_ASSEMBLY);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++  
++  this->zero();
++}
++
++
++
++template <typename T>
+ void PetscMatrix<T>::zero ()
+ {
+   libmesh_assert (this->initialized());
+@@ -341,8 +456,73 @@
+ 
+ 
+ 
++template <typename T>
++void PetscMatrix<T>::addColumnVector (const T, 
++                                      const unsigned int col_num,
++                                      NumericVector<T> &vec,
++                                      const bool ignore_new_entries)
++{
++  libmesh_assert (this->initialized());
++  
++  const unsigned int m = vec.size();
++  libmesh_assert (this->m() == m);
++  libmesh_assert (col_num <= this->n());
++  
++  this->close();
++  vec.close();
++  
++  PetscErrorCode ierr=0;
+ 
++  // set the option of the matrix based on ignore_new_entries. This assumes that the 
++  // matrix has the option MAT_NEW_NONZERO_LOCATION_ERR set by default. Hence, 
++  // if it is changed, it should be returned to its original value after the operation
++  if (ignore_new_entries)
++    {
++    ierr = MatSetOption (_mat, MAT_NO_NEW_NONZERO_LOCATIONS);
++    CHKERRABORT(libMesh::COMM_WORLD,ierr);
++    }
++  else
++    {
++    ierr = MatSetOption (_mat, MAT_YES_NEW_NONZERO_LOCATIONS);
++    CHKERRABORT(libMesh::COMM_WORLD,ierr);
++    }
++  
++  Vec pvec = dynamic_cast<PetscVector<T>&>(vec).vec();
++  // get the local array of the vector, and its local ownership range
++  PetscInt local_low, local_high;
++  T *vals = NULL;
++  ierr = VecGetOwnershipRange(pvec,&local_low,&local_high);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
+ 
++  ierr = VecGetArray(pvec, &vals);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++
++  // now iterate over the entries and add them to the matrix
++  PetscInt *row_ids = new PetscInt[local_high - local_low];
++  for (int i=local_low; i < local_high; i++)
++    row_ids[i] = i;
++  
++  ierr = MatSetValues(_mat,
++                      (local_high - local_low), row_ids, 
++                      1, (const PetscInt*)&col_num,
++                      vals, ADD_VALUES);
++
++  // now delete the row ID array
++  delete[] row_ids;
++  
++  this->perform_intermediate_matrix_assembly();
++  
++  // finally, restore the array vector
++  ierr = VecGetArray(pvec, &vals);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++  
++  ierr = MatSetOption (_mat, MAT_NEW_NONZERO_LOCATION_ERR);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);
++}
++
++
++
++
+ template <typename T>
+ void PetscMatrix<T>::_get_submatrix(SparseMatrix<T>& submatrix,
+ 				    const std::vector<unsigned int> &rows,
+@@ -387,32 +567,116 @@
+ }
+ 
+ 
++template <typename T>
++void PetscMatrix<T>::shift(const T  num)
++{
++  libmesh_assert (this->initialized());
++  
++  this->close();  
++  
++  PetscErrorCode ierr=0;
++  ierr = MatShift(this->_mat, num);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);  
++}
+ 
++
++
+ template <typename T>
++void PetscMatrix<T>::leftDiagonalScale(NumericVector<T>& vec)
++{
++  libmesh_assert (this->initialized());
++  libmesh_assert (this->m() == vec.size());
++  
++  this->close();
++  vec.close();
++  
++  PetscErrorCode ierr=0;
++  PetscVector<T>& petsc_vec = dynamic_cast<PetscVector<T>&> (vec);
++  ierr = MatDiagonalScale(this->_mat, petsc_vec.vec(), PETSC_NULL);
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);  
++}
++
++  
++
++template <typename T>
++void PetscMatrix<T>::rightDiagonalScale( NumericVector<T>& vec)
++{
++  libmesh_assert (this->initialized());
++  libmesh_assert (this->m() == vec.size());
++  
++  this->close();
++  vec.close();
++  
++  PetscErrorCode ierr=0;
++  PetscVector<T>& petsc_vec = dynamic_cast<PetscVector<T>&> (vec);
++  ierr = MatDiagonalScale(this->_mat, PETSC_NULL, petsc_vec.vec());
++  CHKERRABORT(libMesh::COMM_WORLD,ierr);  
++}
++
++
++
++
++template <typename T>
++void PetscMatrix<T>::diagonalize( NumericVector<T>& vec)
++{
++  libmesh_assert (this->initialized());
++  libmesh_assert (this->m() == vec.size());
++  
++  this->close();
++  vec.close();
++  
++  PetscErrorCode ierr=0;
++  int n_cols;
++  const int *col_ids;
++  const T *vals;
++  T sum=0;
++  
++  for (unsigned int i=0; i < this->m(); i++)
++    {
++      ierr = MatGetRow(this->_mat, i, &n_cols, &col_ids, &vals);
++      CHKERRABORT(libMesh::COMM_WORLD,ierr);  
++      
++      // now sum up the columns and set the value equal to the row in the vector
++      sum = T();
++      for (int j=0; j < n_cols; j++)
++        sum += vals[j];
++      
++      vec.set(i, sum);
++      
++      ierr = MatRestoreRow(this->_mat, i, &n_cols, &col_ids, &vals);
++      CHKERRABORT(libMesh::COMM_WORLD,ierr);  
++    }
++
++  vec.close();
++}
++
++
++
++template <typename T>
+ void PetscMatrix<T>::get_diagonal (NumericVector<T>& dest) const
+ {
+   // Make sure the NumericVector passed in is really a PetscVector
+   PetscVector<T>* petsc_dest = libmesh_cast_ptr<PetscVector<T>*>(&dest);
+   libmesh_assert(petsc_dest != NULL);
+-
++  
+   // Call PETSc function.
+-
++  
+ #if PETSC_VERSION_LESS_THAN(2,3,1)
+-
++  
+   std::cout << "This method has been developed with PETSc 2.3.1.  "
+-	    << "No one has made it backwards compatible with older "
+-	    << "versions of PETSc so far; however, it might work "
+-	    << "without any change with some older version." << std::endl;
++  << "No one has made it backwards compatible with older "
++  << "versions of PETSc so far; however, it might work "
++  << "without any change with some older version." << std::endl;
+   libmesh_error();
+-
++  
+ #else
+-
++  
+   // Needs a const_cast since PETSc does not work with const.
+   int ierr =
+-    MatGetDiagonal(const_cast<PetscMatrix<T>*>(this)->mat(),petsc_dest->vec()); CHKERRABORT(libMesh::COMM_WORLD,ierr);
+-
++  MatGetDiagonal(const_cast<PetscMatrix<T>*>(this)->mat(),petsc_dest->vec()); CHKERRABORT(libMesh::COMM_WORLD,ierr);
++  
+ #endif
+-
++  
+ }
+ 
+ 
+Index: src/base/dof_map.C
+===================================================================
+--- src/base/dof_map.C	(revision 3286)
++++ src/base/dof_map.C	(working copy)
+@@ -1115,26 +1115,37 @@
+   // Even better, if the full sparsity pattern is not needed then
+   // the number of nonzeros per row can be estimated from the
+   // sparsity patterns created on each thread.
+-  SparsityPattern::Build sp (mesh,
+-			     *this,
+-			     _dof_coupling,
+-			     implicit_neighbor_dofs,
+-			     need_full_sparsity_pattern);
++  // *** this has been changed to a member of the object since it will be stored 
++  // and used for matrices beyond this function ***
++  this->_sp.reset(new SparsityPattern::Build(mesh,
++                                             *this,
++                                             _dof_coupling,
++                                             implicit_neighbor_dofs,
++                                             need_full_sparsity_pattern));
+   
+   Threads::parallel_reduce (ConstElemRange (mesh.active_elements_begin(),
+-					    mesh.active_elements_end()), sp);
++                                            mesh.active_elements_end()), *(this->_sp.get()));
+ 
+ #ifndef NDEBUG
+   // Avoid declaring these variables unless asserts are enabled.
+   const unsigned int proc_id        = mesh.processor_id();
+   const unsigned int n_dofs_on_proc = this->n_dofs_on_processor(proc_id);
+ #endif
+-  libmesh_assert (sp.sparsity_pattern.size() == n_dofs_on_proc);
++  libmesh_assert (this->_sp->sparsity_pattern.size() == n_dofs_on_proc);
+ 
+   // steal the n_nz and n_oz arrays from sp -- it won't need them any more,
+   // and this is more efficient than copying them.
+-  _n_nz.swap(sp.n_nz);
+-  _n_oz.swap(sp.n_oz);
++  //_n_nz.swap(sp.n_nz);
++  //_n_oz.swap(sp.n_oz);
++  // *** this has been changed to copy since the sparsity pattern is being stored 
++  // in this object. This is because the matrices will not necessarily be initialized 
++  // only once through this method, but at arbitrary times through the sparsity_pattern***
++  _n_nz.resize(this->_sp->n_nz.size());
++  _n_oz.resize(this->_sp->n_oz.size());
++  for (unsigned int i=0; i< _n_nz.size(); i++)
++    _n_nz[i] = this->_sp->n_nz[i];
++  for (unsigned int i=0; i< _n_oz.size(); i++)
++    _n_oz[i] = this->_sp->n_oz[i];
+   
+   STOP_LOG("compute_sparsity()", "DofMap");
+   
+@@ -1146,7 +1157,7 @@
+   end = _matrices.end();
+       
+   for (; pos != end; ++pos)
+-    (*pos)->update_sparsity_pattern (sp.sparsity_pattern);     
++    (*pos)->update_sparsity_pattern (this->_sp->sparsity_pattern);     
+ }
+ 
+ 
+Index: src/fe/fe_interface.C
+===================================================================
+--- src/fe/fe_interface.C	(revision 3246)
++++ src/fe/fe_interface.C	(working copy)
+@@ -92,7 +92,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<1>::n_shape_functions(t, o);
+ 
++	  case BATOZ:
++	    return FE<1, BATOZ>::n_shape_functions(t, o);
++        
++      case BCIZ:
++        return FE<1, BCIZ>::n_shape_functions(t, o);
+ 
++
+ 	  default:
+ 	    libmesh_error();
+ 	  }
+@@ -132,7 +138,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<2>::n_shape_functions(t, o);
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<2, BATOZ>::n_shape_functions(t, o);
++
++      case BCIZ:
++        return FE<2, BCIZ>::n_shape_functions(t, o);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -168,7 +180,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<3>::n_shape_functions(t, o);
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<3, BATOZ>::n_shape_functions(t, o);
++
++      case BCIZ:
++        return FE<3, BCIZ>::n_shape_functions(t, o);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -235,7 +253,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<1>::n_dofs(t, o);
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<1,BATOZ>::n_dofs(t, o);
++
++      case BCIZ:
++        return FE<1,BCIZ>::n_dofs(t, o);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -274,7 +298,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<2>::n_dofs(t, o);
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<2,BATOZ>::n_dofs(t, o);
++
++      case BCIZ:
++        return FE<2,BCIZ>::n_dofs(t, o);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -310,6 +340,9 @@
+ 	  case XYZ:
+ 	    return FEXYZ<3>::n_dofs(t, o);
+ 
++	  case BATOZ:
++	    return FE<3,BATOZ>::n_dofs(t, o);
++
+ 	  default:
+ 	    libmesh_error();
+ 	  }
+@@ -377,7 +410,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<1>::n_dofs_at_node(t, o, n);
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<1,BATOZ>::n_dofs_at_node(t, o, n);
++
++      case BCIZ:
++        return FE<1,BCIZ>::n_dofs_at_node(t, o, n);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -416,7 +455,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<2>::n_dofs_at_node(t, o, n);
+ 
+-	  default:
++    case BATOZ:
++	    return FE<2,BATOZ>::n_dofs_at_node(t, o, n);
++
++      case BCIZ:
++        return FE<2,BCIZ>::n_dofs_at_node(t, o, n);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -452,7 +497,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<3>::n_dofs_at_node(t, o, n);
+ 
+-	  default:
++    case BATOZ:
++	    return FE<3,BATOZ>::n_dofs_at_node(t, o, n);
++
++      case BCIZ:
++        return FE<3,BCIZ>::n_dofs_at_node(t, o, n);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -519,7 +570,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<1>::n_dofs_per_elem(t, o);
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<1,BATOZ>::n_dofs_per_elem(t, o);
++
++      case BCIZ:
++        return FE<1,BCIZ>::n_dofs_per_elem(t, o);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -558,7 +615,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<2>::n_dofs_per_elem(t, o);
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<2,BATOZ>::n_dofs_per_elem(t, o);
++
++      case BCIZ:
++        return FE<2,BCIZ>::n_dofs_per_elem(t, o);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -594,7 +657,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<3>::n_dofs_per_elem(t, o);
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<3,BATOZ>::n_dofs_per_elem(t, o);
++
++      case BCIZ:
++        return FE<3,BCIZ>::n_dofs_per_elem(t, o);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -663,6 +732,12 @@
+ 	    FEXYZ<1>::dofs_on_side(elem, o, s, di);
+             return;
+ 
++	  case BATOZ:
++	    return FE<1,BATOZ>::dofs_on_side(elem, o, s, di);
++
++      case BCIZ:
++        return FE<1,BCIZ>::dofs_on_side(elem, o, s, di);
++
+ 	  default:
+ 	    libmesh_error();
+ 	  }
+@@ -710,7 +785,13 @@
+ 	    FEXYZ<2>::dofs_on_side(elem, o, s, di);
+             return;
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<2,BATOZ>::dofs_on_side(elem, o, s, di);
++
++      case BCIZ:
++        return FE<2,BCIZ>::dofs_on_side(elem, o, s, di);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -753,7 +834,13 @@
+ 	    FEXYZ<3>::dofs_on_side(elem, o, s, di);
+             return;
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<3,BATOZ>::dofs_on_side(elem, o, s, di);
++
++      case BCIZ:
++        return FE<3,BCIZ>::dofs_on_side(elem, o, s, di);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -819,7 +906,13 @@
+ 	    FEXYZ<1>::dofs_on_edge(elem, o, e, di);
+             return;
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<1,BATOZ>::dofs_on_edge(elem, o, e, di);
++
++      case BCIZ:
++        return FE<1,BCIZ>::dofs_on_edge(elem, o, e, di);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -866,7 +959,13 @@
+ 	    FEXYZ<2>::dofs_on_edge(elem, o, e, di);
+             return;
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<2,BATOZ>::dofs_on_edge(elem, o, e, di);
++
++      case BCIZ:
++        return FE<2,BCIZ>::dofs_on_edge(elem, o, e, di);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -909,7 +1008,13 @@
+ 	    FEXYZ<3>::dofs_on_edge(elem, o, e, di);
+             return;
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<3,BATOZ>::dofs_on_edge(elem, o, e, di);
++
++      case BCIZ:
++        return FE<3,BCIZ>::dofs_on_edge(elem, o, e, di);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -994,6 +1099,14 @@
+ 				 elem_soln, nodal_soln);
+ 	    return;
+ 
++	  case BATOZ:
++	    return FE<1,BATOZ>::nodal_soln(elem, order,
++                                     elem_soln, nodal_soln);
++
++      case BCIZ:
++        return FE<1,BCIZ>::nodal_soln(elem, order,
++                                       elem_soln, nodal_soln);
++        
+ 	  default:
+ 	    libmesh_error();
+ 	  }
+@@ -1049,7 +1162,15 @@
+ 				 elem_soln, nodal_soln);
+ 	    return;
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<2,BATOZ>::nodal_soln(elem, order,
++                                     elem_soln, nodal_soln);
++
++      case BCIZ:
++        return FE<2,BCIZ>::nodal_soln(elem, order,
++                                       elem_soln, nodal_soln);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -1099,7 +1220,15 @@
+ 				 elem_soln, nodal_soln);
+ 	    return;
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<3,BATOZ>::nodal_soln(elem, order,
++                                     elem_soln, nodal_soln);
++
++      case BCIZ:
++        return FE<3,BCIZ>::nodal_soln(elem, order,
++                                       elem_soln, nodal_soln);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -1161,8 +1290,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<1>::inverse_map(elem, p, tolerance, secure);
+ 
++	  case BATOZ:
++	    return FE<1,BATOZ>::inverse_map(elem, p, tolerance, secure);
+ 
+-	  default:
++      case BCIZ:
++        return FE<1,BCIZ>::inverse_map(elem, p, tolerance, secure);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -1200,7 +1334,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<2>::inverse_map(elem, p, tolerance, secure);
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<2,BATOZ>::inverse_map(elem, p, tolerance, secure);
++
++      case BCIZ:
++        return FE<2,BCIZ>::inverse_map(elem, p, tolerance, secure);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -1235,7 +1375,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<3>::inverse_map(elem, p, tolerance, secure);
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<3,BATOZ>::inverse_map(elem, p, tolerance, secure);
++
++      case BCIZ:
++        return FE<3,BCIZ>::inverse_map(elem, p, tolerance, secure);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -1336,7 +1482,13 @@
+ 	    FEXYZ<1>::inverse_map(elem, physical_points, reference_points, tolerance, secure);
+ 	    return;
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<1,BATOZ>::inverse_map(elem, physical_points, reference_points, tolerance, secure);
++
++      case BCIZ:
++        return FE<1,BCIZ>::inverse_map(elem, physical_points, reference_points, tolerance, secure);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -1383,7 +1535,13 @@
+ 	    FEXYZ<2>::inverse_map(elem, physical_points, reference_points, tolerance, secure);
+ 	    return;
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<2,BATOZ>::inverse_map(elem, physical_points, reference_points, tolerance, secure);
++
++      case BCIZ:
++        return FE<2,BCIZ>::inverse_map(elem, physical_points, reference_points, tolerance, secure);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -1426,6 +1584,12 @@
+ 	    FEXYZ<3>::inverse_map(elem, physical_points, reference_points, tolerance, secure);
+ 	    return;
+ 	    
++	  case BATOZ:
++	    return FE<3,BATOZ>::inverse_map(elem, physical_points, reference_points, tolerance, secure);
++
++      case BCIZ:
++        return FE<3,BCIZ>::inverse_map(elem, physical_points, reference_points, tolerance, secure);
++	  
+ 	  default:
+ 	    libmesh_error();
+ 	  }
+@@ -1503,7 +1667,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<1>::shape(t,o,i,p);
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<1,BATOZ>::shape(t,o,i,p);
++
++      case BCIZ:
++        return FE<1,BCIZ>::shape(t,o,i,p);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -1542,7 +1712,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<2>::shape(t,o,i,p);
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<2,BATOZ>::shape(t,o,i,p);
++
++      case BCIZ:
++        return FE<2,BCIZ>::shape(t,o,i,p);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -1578,7 +1754,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<3>::shape(t,o,i,p);
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<3,BATOZ>::shape(t,o,i,p);
++
++      case BCIZ:
++        return FE<3,BCIZ>::shape(t,o,i,p);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -1646,7 +1828,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<1>::shape(elem,o,i,p);
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<1,BATOZ>::shape(elem,o,i,p);
++
++      case BCIZ:
++        return FE<1,BCIZ>::shape(elem,o,i,p);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -1682,7 +1870,13 @@
+ 
+ #endif
+ 	    
+-	  case XYZ:
++	  case BATOZ:
++	    return FE<2,BATOZ>::shape(elem,o,i,p);
++
++      case BCIZ:
++        return FE<2,BCIZ>::shape(elem,o,i,p);
++
++      case XYZ:
+ 	    return FEXYZ<2>::shape(elem,o,i,p);
+ 
+ 	  default:
+@@ -1721,7 +1915,13 @@
+ 	  case XYZ:
+ 	    return FEXYZ<3>::shape(elem,o,i,p);
+ 
+-	  default:
++	  case BATOZ:
++	    return FE<3,BATOZ>::shape(elem,o,i,p);
++
++      case BCIZ:
++        return FE<3,BCIZ>::shape(elem,o,i,p);
++
++      default:
+ 	    libmesh_error();
+ 	  }
+       }
+@@ -2053,6 +2253,36 @@
+ 	      return unknown;
+ 	  }
+ 	break;
++        
++      case BATOZ:
++      case BCIZ:
++      switch (el_t)
++          {
++          case TRI3:
++          case QUAD4:
++            return 3;
++            
++          case EDGE2:
++          case EDGE3:
++          case EDGE4:
++          case TRI6:
++          case QUAD8:
++          case QUAD9:
++          case TET4:
++          case TET10:
++          case HEX8:
++          case HEX20:
++          case HEX27:
++          case PRISM6:
++          case PRISM15:
++          case PRISM18:
++          case PYRAMID5:
++          default:
++            return unknown;
++          }
++        break;
++
++        
+       case CLOUGH:
+ 	switch (el_t)
+ 	  {
+@@ -2158,6 +2388,12 @@
+ {
+   switch (fe_t.family)
+     {
++    // do not know what to do about this
++    case BATOZ:
++      case BCIZ:
++      abort();
++      break;
++    
+       case LAGRANGE:
+       case MONOMIAL:
+ #ifdef LIBMESH_ENABLE_HIGHER_ORDER_SHAPES
+Index: src/fe/fe_base.C
+===================================================================
+--- src/fe/fe_base.C	(revision 3246)
++++ src/fe/fe_base.C	(working copy)
+@@ -163,6 +163,18 @@
+ 	      return ap;
+ 	    }
+ 
++	  case BATOZ:
++	    {
++	      AutoPtr<FEBase> ap(new FE<1, BATOZ>(fet));
++	      return ap;
++	    }
++
++      case BCIZ:
++	    {
++	      AutoPtr<FEBase> ap(new FE<1, BCIZ>(fet));
++	      return ap;
++	    }
++        
+ 	  default:
+ 	    std::cout << "ERROR: Bad FEType.family= " << fet.family << std::endl;
+ 	    libmesh_error();
+@@ -225,6 +237,18 @@
+ 	      return ap;
+ 	    }
+ 
++    case BATOZ:
++	    {
++	      AutoPtr<FEBase> ap(new FE<2, BATOZ>(fet));
++	      return ap;
++	    }
++
++      case BCIZ:
++	    {
++	      AutoPtr<FEBase> ap(new FE<2, BCIZ>(fet));
++	      return ap;
++	    }
++        
+ 	  default:
+ 	    std::cout << "ERROR: Bad FEType.family= " << fet.family << std::endl;
+ 	    libmesh_error();
+@@ -288,6 +312,18 @@
+ 	      return ap;
+ 	    }
+ 
++    case BATOZ:
++	    {
++	      AutoPtr<FEBase> ap(new FE<3, BATOZ>(fet));
++	      return ap;
++	    }
++
++      case BCIZ:
++	    {
++	      AutoPtr<FEBase> ap(new FE<3, BCIZ>(fet));
++	      return ap;
++	    }
++        
+ 	  default:
+ 	    std::cout << "ERROR: Bad FEType.family= " << fet.family << std::endl;
+ 	    libmesh_error();
+Index: src/fe/fe_boundary.C
+===================================================================
+--- src/fe/fe_boundary.C	(revision 3246)
++++ src/fe/fe_boundary.C	(working copy)
+@@ -56,6 +56,10 @@
+ REINIT_ERROR(0, MONOMIAL, edge_reinit)
+ REINIT_ERROR(0, XYZ, reinit)
+ REINIT_ERROR(0, XYZ, edge_reinit)
++REINIT_ERROR(0, BATOZ, reinit)
++REINIT_ERROR(0, BATOZ, edge_reinit)
++REINIT_ERROR(0, BCIZ, reinit)
++REINIT_ERROR(0, BCIZ, edge_reinit)
+ #ifdef LIBMESH_ENABLE_HIGHER_ORDER_SHAPES
+ REINIT_ERROR(0, BERNSTEIN, reinit)
+ REINIT_ERROR(0, BERNSTEIN, edge_reinit)
+@@ -68,6 +72,8 @@
+ REINIT_ERROR(1, HIERARCHIC, edge_reinit)
+ REINIT_ERROR(1, LAGRANGE, edge_reinit)
+ REINIT_ERROR(1, XYZ, edge_reinit)
++REINIT_ERROR(1, BATOZ, edge_reinit)
++REINIT_ERROR(1, BCIZ, edge_reinit)
+ REINIT_ERROR(1, MONOMIAL, edge_reinit)
+ #ifdef LIBMESH_ENABLE_HIGHER_ORDER_SHAPES
+ REINIT_ERROR(1, BERNSTEIN, edge_reinit)
+@@ -711,6 +717,8 @@
+ template void FE<1,SZABAB>::reinit(Elem const*, unsigned int, Real);
+ #endif
+ template void FE<1,XYZ>::reinit(Elem const*, unsigned int, Real);
++template void FE<1,BATOZ>::reinit(Elem const*, unsigned int, Real);
++template void FE<1,BCIZ>::reinit(Elem const*, unsigned int, Real);
+ 
+ template void FE<2,LAGRANGE>::reinit(Elem const*, unsigned int, Real);
+ template void FE<2,LAGRANGE>::edge_reinit(Elem const*, unsigned int, Real);
+@@ -730,6 +738,10 @@
+ #endif
+ template void FE<2,XYZ>::reinit(Elem const*, unsigned int, Real);
+ template void FE<2,XYZ>::edge_reinit(Elem const*, unsigned int, Real);
++template void FE<2,BATOZ>::reinit(Elem const*, unsigned int, Real);
++template void FE<2,BATOZ>::edge_reinit(Elem const*, unsigned int, Real);
++template void FE<2,BCIZ>::reinit(Elem const*, unsigned int, Real);
++template void FE<2,BCIZ>::edge_reinit(Elem const*, unsigned int, Real);
+ 
+ // Intel 9.1 complained it needed this in devel mode.
+ template void FE<2,XYZ>::init_face_shape_functions(const std::vector<Point>&, const Elem*);
+@@ -752,6 +764,10 @@
+ #endif
+ template void FE<3,XYZ>::reinit(Elem const*, unsigned int, Real);
+ template void FE<3,XYZ>::edge_reinit(Elem const*, unsigned int, Real);
++template void FE<3,BATOZ>::reinit(Elem const*, unsigned int, Real);
++template void FE<3,BATOZ>::edge_reinit(Elem const*, unsigned int, Real);
++template void FE<3,BCIZ>::reinit(Elem const*, unsigned int, Real);
++template void FE<3,BCIZ>::edge_reinit(Elem const*, unsigned int, Real);
+ 
+ // Intel 9.1 complained it needed this in devel mode.
+ template void FE<3,XYZ>::init_face_shape_functions(const std::vector<Point>&, const Elem*);
+Index: Makefile
+===================================================================
+--- Makefile	(revision 3246)
++++ Makefile	(working copy)
+@@ -53,7 +53,6 @@
+ ###############################################################################
+ 
+ 
+-
+ ###############################################################################
+ # Target:
+ #
+@@ -62,7 +61,8 @@
+ ifeq ($(syn-mode),on)
+   all:: $(objects)
+ else
+-  all:: $(target) $(appbinfiles)
++  all:: $(target) 
++#all:: $(target) $(appbinfiles)
+ endif
+ ###############################################################################
+ 
+Index: .depend
+===================================================================
+--- .depend	(revision 3286)
++++ .depend	(working copy)
+@@ -627,6 +627,161 @@
+     include/utils/parameters.h\
+     include/utils/perf_log.h\
+     include/utils/statistics.h
++src/fe/FEBatoz.$(obj-suffix):\
++    src/fe/FEBatoz.C\
++    include/base/auto_ptr.h\
++    include/base/dof_map.h\
++    include/base/dof_object.h\
++    include/base/libmesh.h\
++    include/base/libmesh_base.h\
++    include/base/libmesh_common.h\
++    include/base/libmesh_config.h\
++    include/base/libmesh_exceptions.h\
++    include/base/libmesh_logging.h\
++    include/base/multi_predicates.h\
++    include/base/print_trace.h\
++    include/base/reference_counted_object.h\
++    include/base/reference_counter.h\
++    include/base/single_predicates.h\
++    include/base/variant_filter_iterator.h\
++    include/enums/enum_elem_quality.h\
++    include/enums/enum_elem_type.h\
++    include/enums/enum_fe_family.h\
++    include/enums/enum_inf_map_type.h\
++    include/enums/enum_io_package.h\
++    include/enums/enum_order.h\
++    include/enums/enum_solver_package.h\
++    include/fe/fe.h\
++    include/fe/fe_base.h\
++    include/fe/fe_interface.h\
++    include/fe/fe_macro.h\
++    include/fe/fe_type.h\
++    include/geom/elem.h\
++    include/geom/elem_range.h\
++    include/geom/node.h\
++    include/geom/point.h\
++    include/geom/stored_range.h\
++    include/mesh/mesh_base.h\
++    include/numerics/tensor_value.h\
++    include/numerics/type_tensor.h\
++    include/numerics/type_vector.h\
++    include/numerics/vector_value.h\
++    include/parallel/threads.h\
++    include/parallel/threads_allocators.h\
++    include/utils/compare_types.h\
++    include/utils/o_string_stream.h\
++    include/utils/perf_log.h
++src/fe/FEBatozShape1D.$(obj-suffix):\
++    src/fe/FEBatozShape1D.C\
++    include/base/auto_ptr.h\
++    include/base/dof_object.h\
++    include/base/libmesh.h\
++    include/base/libmesh_base.h\
++    include/base/libmesh_common.h\
++    include/base/libmesh_config.h\
++    include/base/libmesh_exceptions.h\
++    include/base/libmesh_logging.h\
++    include/base/multi_predicates.h\
++    include/base/print_trace.h\
++    include/base/reference_counted_object.h\
++    include/base/reference_counter.h\
++    include/base/single_predicates.h\
++    include/base/variant_filter_iterator.h\
++    include/enums/enum_elem_quality.h\
++    include/enums/enum_elem_type.h\
++    include/enums/enum_fe_family.h\
++    include/enums/enum_inf_map_type.h\
++    include/enums/enum_io_package.h\
++    include/enums/enum_order.h\
++    include/enums/enum_solver_package.h\
++    include/fe/fe.h\
++    include/fe/fe_base.h\
++    include/fe/fe_type.h\
++    include/geom/elem.h\
++    include/geom/node.h\
++    include/geom/point.h\
++    include/numerics/tensor_value.h\
++    include/numerics/type_tensor.h\
++    include/numerics/type_vector.h\
++    include/numerics/vector_value.h\
++    include/parallel/threads.h\
++    include/utils/compare_types.h\
++    include/utils/o_string_stream.h\
++    include/utils/perf_log.h
++src/fe/FEBatozShape2D.$(obj-suffix):\
++    src/fe/FEBatozShape2D.C\
++    include/base/auto_ptr.h\
++    include/base/dof_object.h\
++    include/base/libmesh.h\
++    include/base/libmesh_base.h\
++    include/base/libmesh_common.h\
++    include/base/libmesh_config.h\
++    include/base/libmesh_exceptions.h\
++    include/base/libmesh_logging.h\
++    include/base/multi_predicates.h\
++    include/base/print_trace.h\
++    include/base/reference_counted_object.h\
++    include/base/reference_counter.h\
++    include/base/single_predicates.h\
++    include/base/variant_filter_iterator.h\
++    include/enums/enum_elem_quality.h\
++    include/enums/enum_elem_type.h\
++    include/enums/enum_fe_family.h\
++    include/enums/enum_inf_map_type.h\
++    include/enums/enum_io_package.h\
++    include/enums/enum_order.h\
++    include/enums/enum_solver_package.h\
++    include/fe/fe.h\
++    include/fe/fe_base.h\
++    include/fe/fe_type.h\
++    include/geom/elem.h\
++    include/geom/node.h\
++    include/geom/point.h\
++    include/numerics/tensor_value.h\
++    include/numerics/type_tensor.h\
++    include/numerics/type_vector.h\
++    include/numerics/vector_value.h\
++    include/parallel/threads.h\
++    include/utils/compare_types.h\
++    include/utils/o_string_stream.h\
++    include/utils/perf_log.h
++src/fe/FEBatozShape3D.$(obj-suffix):\
++    src/fe/FEBatozShape3D.C\
++    include/base/auto_ptr.h\
++    include/base/dof_object.h\
++    include/base/libmesh.h\
++    include/base/libmesh_base.h\
++    include/base/libmesh_common.h\
++    include/base/libmesh_config.h\
++    include/base/libmesh_exceptions.h\
++    include/base/libmesh_logging.h\
++    include/base/multi_predicates.h\
++    include/base/print_trace.h\
++    include/base/reference_counted_object.h\
++    include/base/reference_counter.h\
++    include/base/single_predicates.h\
++    include/base/variant_filter_iterator.h\
++    include/enums/enum_elem_quality.h\
++    include/enums/enum_elem_type.h\
++    include/enums/enum_fe_family.h\
++    include/enums/enum_inf_map_type.h\
++    include/enums/enum_io_package.h\
++    include/enums/enum_order.h\
++    include/enums/enum_solver_package.h\
++    include/fe/fe.h\
++    include/fe/fe_base.h\
++    include/fe/fe_type.h\
++    include/geom/elem.h\
++    include/geom/node.h\
++    include/geom/point.h\
++    include/numerics/tensor_value.h\
++    include/numerics/type_tensor.h\
++    include/numerics/type_vector.h\
++    include/numerics/vector_value.h\
++    include/parallel/threads.h\
++    include/utils/compare_types.h\
++    include/utils/o_string_stream.h\
++    include/utils/perf_log.h
+ src/fe/fe.$(obj-suffix):\
+     src/fe/fe.C\
+     include/base/auto_ptr.h\
+@@ -7422,6 +7577,7 @@
+     include/numerics/numeric_vector.h\
+     include/numerics/petsc_macro.h\
+     include/numerics/petsc_matrix.h\
++    include/numerics/petsc_vector.h\
+     include/numerics/sparse_matrix.h\
+     include/numerics/trilinos_epetra_matrix.h\
+     include/numerics/type_vector.h\

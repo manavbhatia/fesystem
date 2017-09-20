@@ -1,0 +1,573 @@
+# $Id: Make_defs,v 1.16.4.10 2008/08/25 04:37:35 manav Exp $
+
+HOST = @host@
+
+FESYSTEM_ABS_DIR = @top_srcdir@
+
+LIBMESH_ARCH = @LIBMESH_ARCH@
+LIBMESH_DIR = $(FESYSTEM_ABS_DIR)/contrib/libmesh
+
+DEALII_DIR = $(FESYSTEM_ABS_DIR)/contrib/deal.II
+
+PETSC_ARCH = @PETSC_ARCH@
+PETSC_DIR = @PETSC_DIR@
+
+SLEPC_DIR = @SLEPC_DIR@
+
+HDF5_DIR = @HDF5_DIR@
+
+# ------------------------  desine all the sources first ------------------------------------
+
+AnalysisDriverDir = $(FESYSTEM_ABS_DIR)/src/AnalysisDriver
+RadiationDir = $(FESYSTEM_ABS_DIR)/src/Radiation
+OutputProcessorDir = $(FESYSTEM_ABS_DIR)/src/OutputProcessor
+DesignDataDir = $(FESYSTEM_ABS_DIR)/src/DesignData
+DatabaseDir = $(FESYSTEM_ABS_DIR)/src/Database
+SolversDir = $(FESYSTEM_ABS_DIR)/src/Solvers
+SolutionsDir = $(FESYSTEM_ABS_DIR)/src/Solutions
+DisciplineDir = $(FESYSTEM_ABS_DIR)/src/Discipline
+FESystemDir = $(FESYSTEM_ABS_DIR)/src/FESystem
+FiniteElemsDir = $(FESYSTEM_ABS_DIR)/src/FiniteElems
+StructuralElemsDir = $(FESYSTEM_ABS_DIR)/src/StructuralElems
+LoadsDir = $(FESYSTEM_ABS_DIR)/src/Loads
+MeshDir = $(FESYSTEM_ABS_DIR)/src/Mesh
+ThermalElemsDir = $(FESYSTEM_ABS_DIR)/src/ThermalElems
+PropertiesDir = $(FESYSTEM_ABS_DIR)/src/Properties
+UtilitiesDir = $(FESYSTEM_ABS_DIR)/src/Utilities
+GeometryDir = $(FESYSTEM_ABS_DIR)/src/Geometry
+PostProcessDir = $(FESYSTEM_ABS_DIR)/src/PostProcess
+InterpolationDir = $(FESYSTEM_ABS_DIR)/src/Interpolation
+NumericsDir = $(FESYSTEM_ABS_DIR)/src/Numerics
+PanelMethodsDir = $(FESYSTEM_ABS_DIR)/src/PanelMethods
+
+
+AnalysisDriver_src = $(AnalysisDriverDir)/AnalysisDriver.C \
+			$(AnalysisDriverDir)/AnalysisDriver.h \
+			$(AnalysisDriverDir)/LinearAnalysisDriver.C \
+			$(AnalysisDriverDir)/LinearAnalysisDriver.h	\
+			$(AnalysisDriverDir)/NonLinearAnalysisDriver.h	\
+			$(AnalysisDriverDir)/NonLinearAnalysisDriver.C  \
+			$(AnalysisDriverDir)/EigenProblemAnalysisDriver.h	\
+			$(AnalysisDriverDir)/EigenProblemAnalysisDriver.C \
+			$(AnalysisDriverDir)/TransientAnalysisDriver.h	\
+			$(AnalysisDriverDir)/TransientAnalysisDriver.C \
+      $(AnalysisDriverDir)/AeroelasticityAnalysisDriverBase.h \
+      $(AnalysisDriverDir)/AeroelasticityAnalysisDriverBase.C \
+      $(AnalysisDriverDir)/RogerApproximationAeroelasticity.h \
+      $(AnalysisDriverDir)/RogerApproximationAeroelasticity.C
+
+Discipline_src = $(DisciplineDir)/AnalysisDisciplineBase.h	\
+			$(DisciplineDir)/AnalysisDisciplineBase.C	\
+			$(DisciplineDir)/ThermalAnalysis.C \
+			$(DisciplineDir)/ThermalAnalysis.h \
+			$(DisciplineDir)/StructuralAnalysis.C \
+			$(DisciplineDir)/StructuralAnalysis.h \
+      $(DisciplineDir)/DisciplineInfo.C \
+			$(DisciplineDir)/DisciplineInfo.h \
+			$(DisciplineDir)/StructuralDisciplineInfo.C \
+			$(DisciplineDir)/StructuralDisciplineInfo.h \
+			$(DisciplineDir)/ThermalDisciplineInfo.C \
+			$(DisciplineDir)/ThermalDisciplineInfo.h \
+      $(DisciplineDir)/AerodynamicDisciplineBase.h \
+      $(DisciplineDir)/AerodynamicDisciplineBase.C \
+      $(DisciplineDir)/PistonTheory.h \
+      $(DisciplineDir)/PistonTheory.C \
+      $(DisciplineDir)/PistonTheoryInfo.h \
+      $(DisciplineDir)/PistonTheoryInfo.C
+
+Database_src = $(DatabaseDir)/ElementDataStorage.C	\
+		$(DatabaseDir)/ElementDataStorage.h	\
+		$(DatabaseDir)/GlobalDataStorage.C	\
+		$(DatabaseDir)/GlobalDataStorage.h      \
+		$(DatabaseDir)/FunctionDatabase.C       \
+		$(DatabaseDir)/FunctionDatabase.h	\
+		$(DatabaseDir)/DataInfo.h		\
+		$(DatabaseDir)/DataInfo.C
+
+
+DesignData_src = $(DesignDataDir)/DesignParameter.h			\
+			$(DesignDataDir)/DesignParameter.C		\
+			$(DesignDataDir)/PropertyParameter.h 	\
+			$(DesignDataDir)/PropertyParameter.C	\
+			$(DesignDataDir)/ShapeParameter.h 	\
+			$(DesignDataDir)/ShapeParameter.C 	\
+      			$(DesignDataDir)/DesignDatabase.h 	\
+			$(DesignDataDir)/DesignDatabase.C 	
+
+
+
+FESystem_src =   $(FESystemDir)/FESystemElem.C	\
+		$(FESystemDir)/FESystemElem.h          \
+    		$(FESystemDir)/AnalysisCase.C  \
+		$(FESystemDir)/AnalysisCase.h \
+    		$(FESystemDir)/FESystemConfig.h 	\
+		$(FESystemDir)/FESystemController.C\
+		$(FESystemDir)/FESystemController.h\
+		$(FESystemDir)/FESystemExceptions.h \
+		$(FESystemDir)/FESystemNumbers.h \
+		$(FESystemDir)/FESystemCommon.h \
+    		$(FESystemDir)/FESystemElemTypeEnumHandler.h \
+    		$(FESystemDir)/FESystemStaticMemberDefinitions.C 
+ 
+    
+FiniteElems_src = $(FiniteElemsDir)/FEBatoz.C \
+    		$(FiniteElemsDir)/FEBatozShape1D.C \
+    		$(FiniteElemsDir)/FEBatozShape2D.C \
+    		$(FiniteElemsDir)/FEBatozShape3D.C
+
+             
+Interpolation_src = 			$(InterpolationDir)/InterpolationCase.h	\
+			$(InterpolationDir)/InterpolationCase.C	\
+			$(InterpolationDir)/InterpolationBase.h	\
+			$(InterpolationDir)/InterpolationBase.C	\
+			$(InterpolationDir)/DirectInterpolation.h	\
+			$(InterpolationDir)/DirectInterpolation.C	
+
+#     $(InterpolationDir)/FEInterpolationElem.h	
+#			$(InterpolationDir)/FEInterpolationElem.C	
+#			$(InterpolationDir)/InterpolationBar2.h	
+#			$(InterpolationDir)/InterpolationBar2.C	
+#			$(InterpolationDir)/InterpolationQuad4.h	
+#			$(InterpolationDir)/InterpolationQuad4.C	
+#			$(InterpolationDir)/InterpolationTri3.h	
+#			$(InterpolationDir)/InterpolationTri3.C	
+#			$(InterpolationDir)/InterpolationHex8.C	
+#			$(InterpolationDir)/InterpolationHex8.h	
+#			$(InterpolationDir)/FEInterpolationAnalysis.h	
+#			$(InterpolationDir)/FEInterpolationAnalysis.C	
+#			$(InterpolationDir)/FEInterpolation.h		
+#			$(InterpolationDir)/FEInterpolation.C	
+
+
+
+Loads_src =  $(LoadsDir)/LoadCase.h	\
+		$(LoadsDir)/LoadDatabase.h\
+		$(LoadsDir)/LoadSet.h\
+		$(LoadsDir)/load.h\
+		$(LoadsDir)/LoadCase.C\
+		$(LoadsDir)/LoadDatabase.C\
+		$(LoadsDir)/LoadSet.C\
+		$(LoadsDir)/load.C \
+		$(LoadsDir)/LoadDataInfo.h \
+		$(LoadsDir)/LoadDataInfo.C \
+		$(LoadsDir)/LoadCombination.h \
+		$(LoadsDir)/LoadCombination.C \
+		$(LoadsDir)/FlightCondition.h \
+		$(LoadsDir)/FlightCondition.cpp
+
+
+Mesh_src =   $(MeshDir)/FEMeshData.C \
+		$(MeshDir)/FEMeshData.h\
+		$(MeshDir)/MeshList.C \
+		$(MeshDir)/MeshList.h                 
+
+
+Numerics_src = $(NumericsDir)/FunctionBase.h \
+    $(NumericsDir)/FunctionBase.C \
+    $(NumericsDir)/MultilinearFunction.h  \
+    $(NumericsDir)/MultilinearFunction.C  \
+    $(NumericsDir)/TensorBase.h \
+    $(NumericsDir)/TensorRankZero.h\
+    $(NumericsDir)/MatrixBase.h\
+    $(NumericsDir)/PetscMatrixBase.h\
+    $(NumericsDir)/PetscSeqDenseMatrix.h\
+    $(NumericsDir)/VectorBase.h\
+    $(NumericsDir)/PetscVectorBase.h\
+    $(NumericsDir)/PetscSeqVector.h\
+    $(NumericsDir)/MultiBlockSparseMatrix.h\
+    $(NumericsDir)/MultiBlockSparseMatrix.C
+
+
+
+OutputProcessor_src = $(OutputProcessorDir)/OutputProcessor.h		\
+			$(OutputProcessorDir)/OutputProcessor.C		\
+			$(OutputProcessorDir)/GMVOutputProcessor.h		\
+			$(OutputProcessorDir)/GMVOutputProcessor.C	\
+			$(OutputProcessorDir)/GmshOutputProcessor.h		\
+			$(OutputProcessorDir)/GmshOutputProcessor.C	\
+			$(OutputProcessorDir)/TecPlotOutputProcessor.h	\
+			$(OutputProcessorDir)/TecPlotOutputProcessor.C \
+			$(OutputProcessorDir)/OutputInfo.h \
+			$(OutputProcessorDir)/OutputInfo.C
+
+
+
+
+PostProcess_src = $(PostProcessDir)/PostProcessQty.h	\
+		$(PostProcessDir)/PostProcessQty.C	\
+		$(PostProcessDir)/ElemPostProcessQty.h	\
+		$(PostProcessDir)/ElemPostProcessQty.C	\
+		$(PostProcessDir)/PostProcessQtyDatabase.h	\
+		$(PostProcessDir)/PostProcessQtyDatabase.C
+
+
+
+Properties_src =   $(PropertiesDir)/PropertyDatabase.C  \
+			$(PropertiesDir)/PropertyDatabase.h  \
+			$(PropertiesDir)/IsotropicMaterialPropertyCard.C \
+			$(PropertiesDir)/IsotropicMaterialPropertyCard.h \
+			$(PropertiesDir)/ElemDataCard.h \
+			$(PropertiesDir)/ElemDataCard.C \
+			$(PropertiesDir)/Isotropic1DElemDataCard.h \
+			$(PropertiesDir)/Isotropic1DElemDataCard.C \
+			$(PropertiesDir)/Isotropic2DElemDataCard.h \
+			$(PropertiesDir)/Isotropic2DElemDataCard.C \
+			$(PropertiesDir)/Isotropic3DElemDataCard.h \
+			$(PropertiesDir)/Isotropic3DElemDataCard.C \
+			$(PropertiesDir)/ForcedConvection1DElemDataCard.h \
+			$(PropertiesDir)/PropertyCardBase.h \
+			$(PropertiesDir)/PropertyCardBase.C \
+			$(PropertiesDir)/MaterialPropertyNameEnums.h \
+			$(PropertiesDir)/PropertyCardParameter.h \
+			$(PropertiesDir)/PropertyCardParameter.C \
+			$(PropertiesDir)/PropertyCard.h 
+
+
+
+
+Radiation_src = $(RadiationDir)/RadiationCavity.h	\
+				$(RadiationDir)/RadiationCavity.C	\
+				$(RadiationDir)/RadiationElement.h	\
+				$(RadiationDir)/RadiationElement.C	\
+				$(RadiationDir)/RadiationElementPair.h	\
+				$(RadiationDir)/RadiationElementPair.C	\
+				$(RadiationDir)/RadiationCavityAnalysis.h	\
+				$(RadiationDir)/RadiationCavityAnalysis.C	\
+       				 $(RadiationDir)/ContourIntegration.h	\
+        			$(RadiationDir)/MitalasIntegration.h	\
+				$(RadiationDir)/ShapeFactors/claussen.h	\
+				$(RadiationDir)/ShapeFactors/claussenp.c	\
+				$(RadiationDir)/ShapeFactors/ff.h		\
+				$(RadiationDir)/ShapeFactors/ffp.c		\
+				$(RadiationDir)/RadiationCavityFiniteElement.h
+
+
+
+
+
+
+Solvers_src = $(SolversDir)/SolverInfo.h	\
+    $(SolversDir)/SolverInfo.C	\
+		$(SolversDir)/LinearSolverInfo.C	\
+		$(SolversDir)/LinearSolverInfo.h	\
+		$(SolversDir)/NonlinearSolverInfo.h	\
+		$(SolversDir)/NonlinearSolverInfo.C	\
+		$(SolversDir)/LinearSolver.h	\
+		$(SolversDir)/LinearSolver.C	\
+		$(SolversDir)/PetscLinearSolver.h	\
+		$(SolversDir)/PetscLinearSolver.cpp \
+		$(SolversDir)/NonlinearSolver.C \
+		$(SolversDir)/NonlinearSolver.h \
+		$(SolversDir)/NewtonNonlinearSolver.C \
+		$(SolversDir)/NewtonNonlinearSolver.h	 \
+		$(SolversDir)/PetscNonlinearSolver.C \
+		$(SolversDir)/PetscNonlinearSolver.h	 \
+    		$(SolversDir)/FESystemSolverBase.h \
+    		$(SolversDir)/FESystemSolverBase.C \
+		$(SolversDir)/EigenSolver.h	\
+		$(SolversDir)/EigenSolver.C	\
+		$(SolversDir)/SlepcEigenSolver.h	\
+		$(SolversDir)/SlepcEigenSolver.C	\
+		$(SolversDir)/ArpackEigenSolver.h	\
+		$(SolversDir)/ArpackEigenSolver.C	\
+		$(SolversDir)/EigenSolverInfo.h	\
+		$(SolversDir)/EigenSolverInfo.C	\
+		$(SolversDir)/TransientSolverInfo.h \
+		$(SolversDir)/TransientSolverInfo.C \
+		$(SolversDir)/TransientSolver.h \
+		$(SolversDir)/TransientSolver.C \
+		$(SolversDir)/NewmarkTransientSolverInfo.h \
+		$(SolversDir)/NewmarkTransientSolverInfo.C \
+		$(SolversDir)/NewmarkTransientSolver.h \
+		$(SolversDir)/NewmarkTransientSolver.C \
+		$(SolversDir)/EulerTransientSolverInfo.h \
+		$(SolversDir)/EulerTransientSolverInfo.C \
+		$(SolversDir)/EulerTransientSolver.h \
+		$(SolversDir)/EulerTransientSolver.C 
+		
+
+    
+    
+    
+Solutions_src = $(SolutionsDir)/SolutionBase.h \
+            $(SolutionsDir)/SolutionBase.C \
+            $(SolutionsDir)/ThermalSolution.h \
+            $(SolutionsDir)/ThermalSolution.C \
+            $(SolutionsDir)/TransientThermalSolution.h \
+            $(SolutionsDir)/TransientThermalSolution.C \
+            $(SolutionsDir)/LinearStressSolution.h \
+            $(SolutionsDir)/LinearStressSolution.C \
+            $(SolutionsDir)/StructuralVibrationEigenSolution.h \
+            $(SolutionsDir)/StructuralVibrationEigenSolution.C \
+            $(SolutionsDir)/LinearizedBucklingEigenSolution.h \
+            $(SolutionsDir)/LinearizedBucklingEigenSolution.C \
+            $(SolutionsDir)/TransientStructuralSolution.h \
+            $(SolutionsDir)/TransientStructuralSolution.C \
+            $(SolutionsDir)/AeroelasticitySolution.h \
+            $(SolutionsDir)/AeroelasticitySolution.C
+
+
+StructuralElems_src = $(StructuralElemsDir)/structural_elem.h		\
+						$(StructuralElemsDir)/structural_elem.C	\
+						$(StructuralElemsDir)/linear_spring.h		\
+						$(StructuralElemsDir)/linear_spring.C		\
+						$(StructuralElemsDir)/bar.h		\
+						$(StructuralElemsDir)/bar.C		\
+						$(StructuralElemsDir)/beam2.h		\
+						$(StructuralElemsDir)/beam2.C		\
+						$(StructuralElemsDir)/plate_MITC4.h		\
+						$(StructuralElemsDir)/plate_MITC4.C		\
+						$(StructuralElemsDir)/membrane.h	\
+						$(StructuralElemsDir)/membrane.C	\
+						$(StructuralElemsDir)/membrane_quad4.h		\
+						$(StructuralElemsDir)/membrane_quad4.C		\
+						$(StructuralElemsDir)/membrane_tri3.h	\
+						$(StructuralElemsDir)/membrane_tri3.C	\
+						$(StructuralElemsDir)/brick_hex8.h		\
+						$(StructuralElemsDir)/brick_hex8.C		\
+						$(StructuralElemsDir)/PlateDKBatoz.h		\
+						$(StructuralElemsDir)/PlateDKBatoz.C		\
+						$(StructuralElemsDir)/PlateDKT.h		\
+						$(StructuralElemsDir)/PlateDKT.C    \
+						$(StructuralElemsDir)/PlateVonKarman.h		\
+						$(StructuralElemsDir)/PlateVonKarman.C		\
+						$(StructuralElemsDir)/Tri3VonKarman.h		\
+						$(StructuralElemsDir)/Tri3VonKarman.C		
+
+
+ThermalElems_src = $(ThermalElemsDir)/conduction_hex8.C  \
+			$(ThermalElemsDir)/conduction_quad4.h \
+			$(ThermalElemsDir)/thermal_elem.C	\
+			$(ThermalElemsDir)/conduction_1d.C   \
+			$(ThermalElemsDir)/conduction_hex8.h \
+			$(ThermalElemsDir)/conduction_tri3.C \
+			$(ThermalElemsDir)/thermal_elem.h	\
+			$(ThermalElemsDir)/conduction_1d.h    \
+			$(ThermalElemsDir)/conduction_quad4.C \
+			$(ThermalElemsDir)/conduction_tri3.h	\
+			$(ThermalElemsDir)/conduction_prism6.h \
+			$(ThermalElemsDir)/conduction_prism6.C \
+			$(ThermalElemsDir)/ForcedConvection1D.h \
+			$(ThermalElemsDir)/ForcedConvection1D.C
+      
+
+Utilities_src = $(UtilitiesDir)/AutoptrVector.h \
+		$(UtilitiesDir)/Log.C \
+		$(UtilitiesDir)/Log.h	\
+		$(UtilitiesDir)/ElemSet.h	\
+		$(UtilitiesDir)/ElemSet.C	\
+		$(UtilitiesDir)/ElemSetList.h	\
+		$(UtilitiesDir)/ElemSetList.C \
+		$(UtilitiesDir)/NameEnumHandler.h \
+ 		$(UtilitiesDir)/InputOutputUtility.h \
+ 		$(UtilitiesDir)/LoadedSolution.h \
+ 		$(UtilitiesDir)/LoadedSolution.C \
+		$(UtilitiesDir)/TimeLogs.h \
+    		$(UtilitiesDir)/TimeLogs.C
+
+
+Geometry_src = $(GeometryDir)/GeometricEntity.h	\
+		$(GeometryDir)/GeometricEntity.C	\
+		$(GeometryDir)/GeomerticPoint.h	\
+		$(GeometryDir)/GeometricPoint.C	\
+		$(GeometryDir)/GeometricLine.h	\
+		$(GeometryDir)/GeometricLine.C	\
+		$(GeometryDir)/GeometricStraightLine.h 	\
+		$(GeometryDir)/GeometricStraightLine.C	\
+		$(GeometryDir)/GeometricCircularArc.h	\
+		$(GeometryDir)/GeometricCircularArc.C	\
+		$(GeometryDir)/GeometricEllipticArc.h	\
+		$(GeometryDir)/GeometricEllipticArc.C	\
+		$(GeometryDir)/GeometricSurface.h		\
+		$(GeometryDir)/GeometricSurface.C		\
+		$(GeometryDir)/GeometricModel.h		\
+		$(GeometryDir)/GeometricModel.C	\
+		$(GeometryDir)/GeometricSet.h	\
+		$(GeometryDir)/GeometricSet.C
+
+
+
+PanelMethods_src =  $(PanelMethodsDir)/PistonTheoryElem.h \
+            $(PanelMethodsDir)/PistonTheoryElem.C \
+            $(PanelMethodsDir)/PistonTheoryTri3.h \
+            $(PanelMethodsDir)/PistonTheoryTri3.cpp
+
+
+FESYSTEM_src =  $(FESYSTEM_ABS_DIR)/src/fem_main.C $(AnalysisDriver_src) \
+		      $(Discipline_src) \
+			$(Database_src) \
+			$(DesignData_src) \
+			$(FESystem_src) \
+			$(Loads_src) \
+			$(Mesh_src) \
+     			$(Numerics_src) \
+			$(OutputProcessor_src) \
+			$(PostProcess_src)	\
+			$(Properties_src) \
+			$(Radiation_src)	\
+			$(Solvers_src) \
+			$(Solutions_src) \
+			$(StructuralElems_src) \
+			$(ThermalElems_src) \
+			$(Utilities_src) \
+			$(Interpolation_src)	\
+			$(PanelMethods_src)	
+
+#			$(Geometry_src)	
+
+
+
+
+
+# -------------------------set the libmesh variables and directories ----------
+LIBMESH_LIB_DIR_OPT = -L$(LIBMESH_DIR)/lib/$(LIBMESH_ARCH)_opt -L$(LIBMESH_DIR)/contrib/lib/$(LIBMESH_ARCH)_opt
+LIBMESH_LIB_DIR_PROF = -L$(LIBMESH_DIR)/lib/$(LIBMESH_ARCH)_pro -L$(LIBMESH_DIR)/contrib/lib/$(LIBMESH_ARCH)_pro
+LIBMESH_LIB_DIR_DBG = -L$(LIBMESH_DIR)/lib/$(LIBMESH_ARCH)_dbg -L$(LIBMESH_DIR)/contrib/lib/$(LIBMESH_ARCH)_dbg
+LIBMESH_LIB_DIR_DEVEL = -L$(LIBMESH_DIR)/lib/$(LIBMESH_ARCH)_devel -L$(LIBMESH_DIR)/contrib/lib/$(LIBMESH_ARCH)_devel 
+
+LIBMESH_LIBS = -lmesh -lparmetis -lmetis -lHilbert -lgmv -lgzstream -lsfcurves -ltetgen -ltriangle
+# -----------------------------------------------------------------------------
+
+
+
+
+# --------------set the PETSC variables ---------------------------------------
+
+PETSC_INCLUDE_DIR = -I$(PETSC_DIR)/include -I$(PETSC_DIR)/$(PETSC_ARCH)/include
+PETSC_LIB_DIR = $(PETSC_DIR)/$(PETSC_ARCH)/lib
+
+PETSC_LIBS = -lpetscts -lpetscsnes -lpetscksp -lpetscdm -lpetscmat \
+		 -lpetscvec -lpetsc
+
+# ----------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+
+SLEPC_INCLUDE_DIR = -I$(SLEPC_DIR)/include -I$(SLEPC_DIR)/$(PETSC_ARCH)/include
+SLEPC_LIB_DIR = $(SLEPC_DIR)/$(PETSC_ARCH)/lib
+
+SLEPC_LIBS = -lslepc
+
+# --------------------------------------------------------------------------
+
+
+
+# ---------------------------------------------------------------------------
+
+HDF5_INCLUDE_DIR = -I$(HDF5_DIR)/include 
+HDF5_LIB_DIR = $(HDF5_DIR)/lib
+
+HDF5_LIBS = -lhdf5
+
+# --------------------------------------------------------------------------
+
+
+# --------------------------------------------------------------------------
+ARPACK_LIB_DIR = $(FESYSTEM_ABS_DIR)/contrib/ARPACK
+ARPACK_LIBS = -larpack
+# --------------------------------------------------------------------------
+
+
+# --------------set the include directories  for both FESystem and libMesh ------
+
+FESYSTEM_INCLUDE_DIR =  -I$(FESYSTEM_ABS_DIR)/src
+
+LIBMESH_INCLUDE_DIR = 	-I$(LIBMESH_DIR)/include/base \
+			-I$(LIBMESH_DIR)/include/enums \
+			-I$(LIBMESH_DIR)/include/error_estimation \
+			-I$(LIBMESH_DIR)/include/fe \
+			-I$(LIBMESH_DIR)/include/geom \
+			-I$(LIBMESH_DIR)/include/mesh \
+			-I$(LIBMESH_DIR)/include/numerics \
+			-I$(LIBMESH_DIR)/include/parallel \
+			-I$(LIBMESH_DIR)/include/partitioning \
+			-I$(LIBMESH_DIR)/include/quadrature \
+			-I$(LIBMESH_DIR)/include/solvers \
+			-I$(LIBMESH_DIR)/include/systems \
+			-I$(LIBMESH_DIR)/include/utils \
+			-I$(LIBMESH_DIR)/include
+
+# -------------------------------------------------------------------------
+
+
+
+# ----------------------set the sources needed from deal.II -----------------------
+
+
+DEALII_INCLUDE_DIR = -I$(DEALII_DIR)/base/include \
+			-I$(DEALII_DIR)/lac/include \
+      -I$(DEALII_DIR)/contrib/boost/include 
+
+DealII_src = $(DEALII_DIR)/base/include/base/config.h \
+      $(DEALII_DIR)/base/include/base/thread_management.h \
+      $(DEALII_DIR)/base/source/thread_management.cc \
+      $(DEALII_DIR)/base/include/base/exceptions.h \
+      $(DEALII_DIR)/base/source/exceptions.cc \
+      $(DEALII_DIR)/base/include/base/subscriptor.h  \
+      $(DEALII_DIR)/base/source/subscriptor.cc  \
+      $(DEALII_DIR)/base/include/base/table_indices.h \
+      $(DEALII_DIR)/base/include/base/table.h 
+      
+
+# -------------------------------------------------------------------------
+
+
+
+
+
+# ---------------set the compiler and compiler options for the libraries and programs -----------
+
+CXX = @CXX@
+CC = @CC@ 
+
+# the following two statements nullify any values set by autoconf, since these flags 
+# seem to interfere with the flags manually set for the system
+CXXFLAGS = 
+CFLAGS = 
+
+CXX_OPT_FLAGS =  -fno-common -O2 -felide-constructors -funroll-loops \
+		-fstrict-aliasing -fPIC -Wdisabled-optimization
+C_OPT_FLAGS =  -O2 -funroll-loops -fstrict-aliasing 
+
+
+CXX_PROF_FLAGS =  -fno-common -O2 -felide-constructors -funroll-loops \
+		-fstrict-aliasing -fPIC -Wdisabled-optimization -g -pg 
+C_PROF_FLAGS = -O2 -funroll-loops -fstrict-aliasing -g -pg
+
+
+CXX_DBG_FLAGS = -DDEBUG -fno-common -O0 -felide-constructors -g3 -ansi -pedantic -fPIC\
+		-W -Wno-long-long -Wall -Wunused -Wpointer-arith -Wimplicit -Wformat -Wparentheses \
+		-Woverloaded-virtual -Woverloaded-virtual -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC
+
+C_DBG_FLAGS   = -DDEBUG -g3 -ansi -fno-common 
+
+
+CXX_DEVEL_FLAGS =  -fno-common -O2 -felide-constructors -funroll-loops \
+		-fstrict-aliasing -fPIC -Wdisabled-optimization -g
+C_DEVEL_FLAGS = -O2 -funroll-loops -fstrict-aliasing -g
+
+
+# -----------------------------------------------------------------------------------------------------------
+
+
+
+# -------------------- define the sources for the libraries and programs ---------------------------------
+
+FESYSTEM_ALL_src = $(FESYSTEM_src) \
+      $(DealII_src)
+
+
+FESYSTEM_INCLUDES = $(FESYSTEM_INCLUDE_DIR) $(DEALII_INCLUDE_DIR) \
+	$(LIBMESH_INCLUDE_DIR) $(SLEPC_INCLUDE_DIR) $(PETSC_INCLUDE_DIR) \
+	$(HDF5_INCLUDE_DIR)
+
+MISC_LIBS =     -L$(HDF5_LIB_DIR) $(HDF5_LIBS) \
+		-L$(SLEPC_LIB_DIR) $(SLEPC_LIBS)  \
+		-L$(PETSC_LIB_DIR) $(PETSC_LIBS)  \
+    		-L$(ARPACK_LIB_DIR)  $(ARPACK_LIBS)\
+		 /System/Library/Frameworks/vecLib.framework/vecLib \
+		-L/usr/X11R6/lib -lX11 -lz 
+
+# ----------------------------------------------------------------------------------------------------------
+

@@ -1,0 +1,5 @@
+<map id="G" name="G">
+<area shape="rect" id="node5" href="$class_loads_1_1_dirichlet_boundary_condition_combination.html" title="Loads::DirichletBoundaryConditionCombination" alt="" coords="5,161,307,189"/>
+<area shape="rect" id="node7" href="$class_loads_1_1_nodal_point_load_combination.html" title="Loads::NodalPointLoadCombination" alt="" coords="331,161,565,189"/>
+<area shape="rect" id="node2" href="$class_loads_1_1_load_combination_base.html" title="Loads::LoadCombinationBase" alt="" coords="201,6,400,34"/>
+</map>

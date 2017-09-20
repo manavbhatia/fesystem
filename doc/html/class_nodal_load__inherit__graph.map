@@ -1,0 +1,5 @@
+<map id="G" name="G">
+<area shape="rect" id="node5" href="$class_dirichlet_boundary_condition.html" title="DirichletBoundaryCondition" alt="" coords="5,161,187,189"/>
+<area shape="rect" id="node7" href="$class_nodal_point_load.html" title="NodalPointLoad" alt="" coords="211,161,327,189"/>
+<area shape="rect" id="node2" href="$class_load_base.html" title="LoadBase" alt="" coords="142,6,223,34"/>
+</map>

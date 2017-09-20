@@ -1,0 +1,5 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$class_geometric_entity.html#a7dc41cbb0cc8b3da40f9369149e57f54" title="return the ID of the base quantity if this quantity is a duplicate" alt="" coords="307,5,506,33"/>
+<area shape="rect" id="node5" href="$class_geometric_line.html#af3b00f75319aa674ef0c924f2b3f8481" title="returns the coordinates of this point" alt="" coords="321,57,492,85"/>
+<area shape="rect" id="node7" href="$class_geometric_entity.html#a66a4d4bcae6ba0171fb6daa4c95cfa5c" title="returns the type of this quantity" alt="" coords="332,109,481,137"/>
+</map>

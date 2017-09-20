@@ -1,0 +1,184 @@
+// $Id: FEBatoz.C,v 1.4.6.1 2007-03-14 22:05:02 manav Exp $
+
+// C++ includes
+#include <cassert> 
+
+// FESystem includes
+
+// libMesh includes
+#include "dof_map.h"
+#include "fe.h"
+#include "fe_macro.h"
+#include "fe_interface.h"
+#include "elem.h"
+
+// this element is an implementation of the triangle and quadrilateral
+// plate elements of Batoz.
+
+
+
+// ------------------------------------------------------------
+// Batoz-specific implementations
+template <unsigned int Dim, FEFamily T>
+void FE<Dim,T>::nodal_soln(const Elem* elem,
+                           const Order order,
+                           const std::vector<Number>& elem_soln,
+                           std::vector<Number>&       nodal_soln)
+{
+  // unused parameter
+  (void) elem;
+  (void) order;
+  (void) elem_soln;
+  (void) nodal_soln;
+
+  // this will not be needed unless mesh refinement is being used. Hence, this will be 
+  // implemented later, as needed. 
+  error();
+}
+
+
+
+
+template <unsigned int Dim, FEFamily T>
+unsigned int FE<Dim,T>::n_dofs(const ElemType t, const Order o)
+{
+  assert(o == 2);
+  
+  switch (t)
+    {
+    
+    // there are 3 dofs per node, 1 translation and 2 rotations. However, the
+    // x and y curvatures are handled by a separate set of shape functions. Hence, 
+    // there are 18 shape functions in all, and hence, 18 dofs
+	  case TRI3:
+	    return 18;
+      
+
+    // the reasoning for 24 dofs is the same as that for TRI3.
+    case QUAD4:
+	    return 24;
+      
+	  default:
+	    {
+#ifdef DEBUG
+	      std::cerr << "ERROR: Bad ElemType = " << t
+        << " for " << o << "th order approximation!" 
+        << std::endl;
+#endif
+	      error();	    
+	    }
+	  }
+  
+  // it should not get here
+  error();	    
+  return 0;
+}
+
+
+
+template <unsigned int Dim, FEFamily T>
+unsigned int FE<Dim,T>::n_dofs_at_node(const ElemType t,
+                                       const Order o,
+                                       const unsigned int n)
+{
+  // params not used here 
+  (void) n;
+
+  assert(o == 2);
+  
+  switch (t)
+    {
+    
+    // 6 dofs at node. 3 for each curvature.
+	  case TRI3:
+	  case QUAD4:
+	    return 6;
+      
+	  default:
+	    {
+#ifdef DEBUG
+	      std::cerr << "ERROR: Bad ElemType = " << t
+        << " for " << o << "th order approximation!" 
+        << std::endl;
+#endif
+	      error();	    
+	    }
+	  }
+  
+  // it should not get here
+  error();	    
+  return 0;
+}
+
+
+
+template <unsigned int Dim, FEFamily T>
+unsigned int FE<Dim,T>::n_dofs_per_elem(const ElemType,
+                                        const Order)
+{
+  // Batoz elements have no dofs per element
+  // (just at the nodes)
+  
+  return 0;
+}
+
+
+
+template <unsigned int Dim, FEFamily T>
+FEContinuity FE<Dim,T>::get_continuity() const
+{
+  return C_ONE;
+}
+
+
+
+template <unsigned int Dim, FEFamily T>
+bool FE<Dim,T>::is_hierarchic() const
+{
+  return false;
+}
+
+
+
+template <unsigned int Dim, FEFamily T>
+void FE<Dim,T>::compute_constraints (DofConstraints &constraints,
+                                     DofMap &dof_map,
+                                     const unsigned int variable_number,
+                                     const Elem* elem)
+{
+  // params not used here
+  (void) constraints;
+  (void) dof_map;
+  (void) variable_number;
+  (void) elem;
+
+  // this has not been implemented yet. The AMR needs to be studied and reimplemented.
+  error();
+}
+
+
+
+template <unsigned int Dim, FEFamily T>
+bool FE<Dim,T>::shapes_need_reinit() const
+{
+  return true;
+}
+
+
+
+
+//--------------------------------------------------------------
+// Explicit instantiation of member functions
+INSTANTIATE_MBRF(0,BATOZ);
+INSTANTIATE_MBRF(1,BATOZ);
+INSTANTIATE_MBRF(2,BATOZ);
+INSTANTIATE_MBRF(3,BATOZ); 
+template void FE<2,BATOZ>::compute_constraints(DofConstraints&, DofMap&, 
+                                               const unsigned int,
+                                               const Elem*);
+template void FE<3,BATOZ>::compute_constraints(DofConstraints&, DofMap&, 
+                                               const unsigned int,
+                                               const Elem*);
+
+
+

@@ -1,0 +1,8 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$class_geometric_model.html#acb1ac21c371590ffdc0f055fcf4ea2d0" title="method to add geometric point to model" alt="" coords="270,5,564,33"/>
+<area shape="rect" id="node7" href="$class_geometric_model.html#a6c95b7ce5d2ca5d9c9601f8ff2da5ceb" title="method adds geometric entity to a geometric set" alt="" coords="613,109,891,137"/>
+<area shape="rect" id="node11" href="$class_geometric_model.html#a65d387d9272d29ad96e467d67f0f9608" title="marks all the duplicates in the model" alt="" coords="290,109,545,137"/>
+<area shape="rect" id="node13" href="$class_geometric_model.html#a8b6b46874d3947c38deffd8276cca537" title="GeometricModel::readTagsAndCreateSets" alt="" coords="281,161,553,189"/>
+<area shape="rect" id="node5" href="$class_geometric_entity.html#a5f1f5f2e6cfb83cf5acaa1be07232292" title="returns the unique ID for this entity" alt="" coords="684,5,820,33"/>
+<area shape="rect" id="node9" href="$class_geometric_model.html#af8e030a92b18abeceb5af751b46d62f4" title="add geometry set to this model" alt="" coords="939,109,1165,137"/>
+</map>

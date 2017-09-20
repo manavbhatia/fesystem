@@ -1,0 +1,132 @@
+// $Id: FEBatozShape3D.C,v 1.3.6.1 2007-03-14 22:05:02 manav Exp $
+
+// FESystem inlcludes
+//#include "FEsystem/FESystemExceptions.h"
+
+// Local includes
+#include "fe.h"
+#include "elem.h"
+
+
+
+
+template <>
+Real FE<3,BATOZ>::shape(const ElemType type,
+			   const Order order,
+			   const unsigned int i,
+			   const Point& p)
+{
+  // params not used 
+  (void) type;
+  (void) order;
+  (void) i;
+  (void) p;
+
+  // there are no 3-D elements for this family.
+  libmesh_error();
+  return 0.;
+}
+
+
+
+template <>
+Real FE<3,BATOZ>::shape(const Elem* elem,
+			   const Order order,
+			   const unsigned int i,
+			   const Point& p)
+{
+  // params not used 
+  (void) elem;
+  (void) order;
+  (void) i;
+  (void) p;
+
+  // there are no 3-D elements for this family.
+  libmesh_error();
+  return 0.;
+}
+
+
+
+
+template <>
+Real FE<3,BATOZ>::shape_deriv(const ElemType type,
+				 const Order order,
+				 const unsigned int i,
+				 const unsigned int j,
+				 const Point& p)
+{
+  // params not used 
+  (void) type;
+  (void) order;
+  (void) i;
+  (void) j;
+  (void) p;
+
+  // there are no 3-D elements for this family.
+  libmesh_error();
+  return 0.;
+}
+
+
+
+template <>
+Real FE<3,BATOZ>::shape_deriv(const Elem* elem,
+				 const Order order,
+				 const unsigned int i,
+				 const unsigned int j,
+				 const Point& p)
+{
+  // params not used 
+  (void) elem;
+  (void) order;
+  (void) i;
+  (void) j;
+  (void) p;
+
+  // there are no 3-D elements for this family.
+  libmesh_error();
+  return 0.;
+}
+
+
+
+template <>
+Real FE<3,BATOZ>::shape_second_deriv(const ElemType type,
+				        const Order order,
+				        const unsigned int i,
+				        const unsigned int j,
+				        const Point& p)
+{
+  // params not used 
+  (void) type;
+  (void) order;
+  (void) i;
+  (void) j;
+  (void) p;
+
+  // there are no 3-D elements for this family.
+  libmesh_error();
+  return 0.;
+}
+
+
+
+template <>
+Real FE<3,BATOZ>::shape_second_deriv(const Elem* elem,
+				 const Order order,
+				 const unsigned int i,
+				 const unsigned int j,
+				 const Point& p)
+{
+  // params not used 
+  (void) elem;
+  (void) order;
+  (void) i;
+  (void) j;
+  (void) p;
+
+  // there are no 3-D elements for this family.
+  libmesh_error();
+  return 0.;
+}

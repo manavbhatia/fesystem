@@ -1,0 +1,7 @@
+<map id="G" name="G">
+<area shape="rect" id="node7" href="$class_scalar_surface_load.html" title="ScalarSurfaceLoad" alt="" coords="5,238,139,266"/>
+<area shape="rect" id="node9" href="$class_surface_convection_load.html" title="SurfaceConvectionLoad" alt="" coords="164,238,327,266"/>
+<area shape="rect" id="node11" href="$class_surface_radiation_load.html" title="SurfaceRadiationLoad" alt="" coords="351,238,504,266"/>
+<area shape="rect" id="node2" href="$class_elem_load.html" title="ElemLoad" alt="" coords="205,83,285,111"/>
+<area shape="rect" id="node4" href="$class_load_base.html" title="LoadBase" alt="" coords="205,6,285,34"/>
+</map>

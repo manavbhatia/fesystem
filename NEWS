@@ -1,0 +1,8 @@
+// $Id: NEWS,v 1.2.6.1 2007-03-03 02:03:56 manav Exp $
+
+03/02/2007:
+
+Tagged the current code as "FESystem-1-2", and created a second branch in the "FESystem-1-0" root. The previous branch was "FESystem-1-0-branch" (essentially "FESystem-1-1"), which will now be avilable only for maintenance. The first maintenance release was created for this branch and was tagged "FESystem-1-0-branch-release-2".
+
+The addition of transient analysis will happen in the "FESystem-1-2" branch. 
+

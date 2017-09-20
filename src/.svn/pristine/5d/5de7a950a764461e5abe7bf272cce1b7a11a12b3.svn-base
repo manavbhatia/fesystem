@@ -1,0 +1,106 @@
+// $Id: ElemPostProcessQty.h,v 1.6 2006-09-05 20:41:50 manav Exp $
+
+#ifndef __elem_post_process_qty_h__
+#define __elem_post_process_qty_h__
+
+// C++ includes
+
+
+
+// FESystem includes
+#include "PostProcess/PostProcessQty.h"
+
+
+// libMesh includes
+
+
+
+
+class ElemPostProcessQty : public PostProcessQty
+{
+public:
+	
+  /// constructor
+  /// @param element ID
+  ElemPostProcessQty(unsigned int elem_ID);
+	
+  /// destructor
+  ~ElemPostProcessQty();
+  
+  /// get the element ID of the quantity
+  unsigned int getElemID() const;
+
+  /// adds stress tensor
+  /// @param tensor to be stored
+  /// @param load case ID for which the value is being stored
+  /// @param Design variable ID if the value is sensitivity
+  void addStressTensor(TensorValue<double>& value, unsigned int load_case, unsigned int DV_ID=0);
+
+  /// adds strain tensor
+  /// @param tensor to be stored
+  /// @param load case ID for which the value is being stored
+  /// @param Design variable ID if the value is sensitivity
+  void addStrainTensor(TensorValue<double>& value, unsigned int load_case, unsigned int DV_ID=0);
+  
+
+  /// adds mechanical strain tensor \epsilon + \alpha \nabla T
+  /// @param tensor to be stored
+  /// @param load case ID for which the value is being stored
+  /// @param Design variable ID if the value is sensitivity
+  void addMechanicalStrainTensor(TensorValue<double>& value, unsigned int load_case, unsigned int DV_ID=0);
+
+
+  /// gets stress tensor
+  /// @param load case ID for which the value is being stored
+  /// @param Design variable ID if the value is sensitivity
+  TensorValue<double>& 
+    getStressTensor(unsigned int load_case, unsigned int DV_ID=0);
+
+  /// gets strain tensor
+  /// @param load case ID for which the value is being stored
+  /// @param Design variable ID if the value is sensitivity
+  TensorValue<double>& 
+    getStrainTensor(unsigned int load_case, unsigned int DV_ID=0);
+
+  /// gets mechanical strain tensor
+  /// @param load case ID for which the value is being stored
+  /// @param Design variable ID if the value is sensitivity
+  TensorValue<double>& 
+    getMechanicalStrainTensor(unsigned int load_case, unsigned int DV_ID=0);
+
+  /// returns the principal stress tensor
+  /// @param load case ID for which the value is being stored
+  /// @param Design variable ID if the value is sensitivity
+  TensorValue<double>& 
+    getPrincipalStressTensor(unsigned int load_case, unsigned int DV_ID=0);
+
+
+  /// returns the strain energy density
+  /// @param load case ID for which the value is being stored
+  /// @param Design variable ID if the value is sensitivity
+  double getStrainEnergyDensity(unsigned int load_case, unsigned int DV_ID=0);
+
+
+  /// returns the vonmises stress
+  /// @param load case ID for which the value is being stored
+  /// @param Design variable ID if the value is sensitivity
+  double getVonMisesStress(unsigned int load_case, unsigned int DV_ID=0);
+
+ protected:
+  
+  /// calculates the principal stress
+  /// @param load case ID for which the value is being stored
+  /// @param Design variable ID if the value is sensitivity
+  void calculatePrincipalStressTensor(unsigned int load_case, unsigned int DV_ID=0);
+  
+  /// bool, whether the principal stresses have been calculated or not
+  bool calculated_principal_stress;
+
+  /// elem ID
+  unsigned int elem_ID;
+};
+
+
+
+
+#endif // __elem_post_process_qty_h__

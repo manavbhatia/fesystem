@@ -1,0 +1,5 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$namespace_f_e_system_database.html#ae5a52e305e96e01573b0a90086a9277f" title="this creates a copy of data info and returns it" alt="" coords="378,5,644,33"/>
+<area shape="rect" id="node7" href="$class_f_e_system_utility_1_1_loaded_vector_data.html#a81949d38257103551bc0fafd34244242" title="FESystemUtility::LoadedVectorData::initialized" alt="" coords="363,57,658,85"/>
+<area shape="rect" id="node5" href="$class_f_e_system_database_1_1_data_info_base.html#a09ea670fe5fffdcdf5de0c947d585744" title="FESystemDatabase::DataInfoBase::getDataInfoKindEnumID" alt="" coords="706,5,1086,33"/>
+</map>

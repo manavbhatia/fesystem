@@ -1,0 +1,35 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$class_f_e_system_numerics_1_1_petsc_matrix_base.html#a5cf620d20826ab76f11656a9e73acaaa" title="FESystemNumerics::PetscMatrixBase::add" alt="" coords="438,30,714,58"/>
+<area shape="rect" id="node9" href="$class_radiation_element_pair.html#ae297673eb5565ceba91e952b2db04dec" title="clears the initialization" alt="" coords="483,82,669,110"/>
+<area shape="rect" id="node11" href="$class_design_data_1_1_design_parameter.html#ab0cb6d6c10206acebbc06d2be204c2e7" title="DesignData::DesignParameter::getID" alt="" coords="455,134,697,162"/>
+<area shape="rect" id="node13" href="$class_design_data_1_1_design_parameter.html#ada780fbd596a879cb3d57cb44376a702" title="DesignData::DesignParameter::getParameterTypeEnumID" alt="" coords="392,186,760,214"/>
+<area shape="rect" id="node15" href="$class_design_data_1_1_design_parameter.html#a0eb8202d84916cb7562fa2429e3bf7f8" title="DesignData::DesignParameter::getPerturbationStepSize" alt="" coords="399,238,753,266"/>
+<area shape="rect" id="node17" href="$class_radiation_element_pair.html#a82194ce5777e2ca4e4824bcf64a62496" title="RadiationElementPair::getShapeFactor" alt="" coords="450,290,702,318"/>
+<area shape="rect" id="node64" href="$class_radiation_element.html#a447d88c256c0428c9d7750f9d6a2efb2" title="ID of the elem." alt="" coords="502,394,650,422"/>
+<area shape="rect" id="node66" href="$class_f_e_system_numerics_1_1_petsc_matrix_base.html#aef539c1770a3365a9b70dd8be0097c91" title="FESystemNumerics::PetscMatrixBase::m" alt="" coords="443,446,709,474"/>
+<area shape="rect" id="node68" href="$class_f_e_system_numerics_1_1_petsc_matrix_base.html#a6cd62edc363882589e4d9520f2c3f566" title="FESystemNumerics::PetscMatrixBase::n" alt="" coords="445,498,707,526"/>
+<area shape="rect" id="node70" href="$class_radiation_element_pair.html#ac2c50e1d3bcc6f8086469389a56bb229" title="initializes the pair with two elements" alt="" coords="884,394,1071,422"/>
+<area shape="rect" id="node76" href="$class_f_e_system_numerics_1_1_petsc_seq_dense_matrix.html#a5acdf5297d21c760dfe0dda54f4d66ca" title="resize the matrix to the given dimensions" alt="" coords="415,550,737,578"/>
+<area shape="rect" id="node78" href="$class_f_e_system_numerics_1_1_petsc_matrix_base.html#a1974a31b7aae6c6ff305dc612dc5113b" title="FESystemNumerics::PetscMatrixBase::scale" alt="" coords="433,602,719,630"/>
+<area shape="rect" id="node80" href="$class_f_e_system_numerics_1_1_petsc_matrix_base.html#a029417d563ab83a4825b417682e9ce38" title="FESystemNumerics::PetscMatrixBase::set" alt="" coords="440,654,712,682"/>
+<area shape="rect" id="node82" href="$class_f_e_system_numerics_1_1_petsc_matrix_base.html#a7f4e4f7b27462324d6c89aa908c3cb6c" title="FESystemNumerics::PetscMatrixBase::zero" alt="" coords="436,706,716,734"/>
+<area shape="rect" id="node5" href="$class_f_e_system_numerics_1_1_matrix_base.html#a24af5737efd851ff093f7feec52caf91" title="FESystemNumerics::MatrixBase::getMatrixPackage" alt="" coords="814,5,1141,33"/>
+<area shape="rect" id="node7" href="$class_f_e_system_numerics_1_1_petsc_matrix_base.html#a73251b033aaa5845cc318163239eac5d" title="returns the Petsc matrix data structure" alt="" coords="830,57,1125,85"/>
+<area shape="rect" id="node19" href="$class_radiation_element_pair.html#afdcdeea5237500b0f052d7f110d1a668" title="calculates and returns the double area integration shape factor" alt="" coords="819,290,1136,318"/>
+<area shape="rect" id="node36" href="$class_radiation_element_pair.html#aeda975a49693c4717d650ebbcfc455c0" title="calculates and returns the analytic shape factor" alt="" coords="838,238,1117,266"/>
+<area shape="rect" id="node43" href="$class_radiation_element_pair.html#a4e95598570357c97da61af3748c63724" title="calculates and returns the contour integration shape factor" alt="" coords="831,342,1124,370"/>
+<area shape="rect" id="node56" href="$class_radiation_element_pair.html#a7364ef6efb17a95f4a5e42192edc8d9d" title="calculates and returns the shape factors using mitalas&#39; method of intgration" alt="" coords="808,186,1147,214"/>
+<area shape="rect" id="node21" href="$class_radiation_element.html#ab314e67b810b03dca3a27ecc83788f9d" title="this function gets the geom elem for the radiation elem" alt="" coords="1211,367,1512,395"/>
+<area shape="rect" id="node27" href="$class_radiation_element.html#ab40d8a0c29577f96165f5adf8113a15e" title="returns the surface normal for this element" alt="" coords="1241,263,1482,291"/>
+<area shape="rect" id="node30" href="$class_radiation_element.html#a7e94cd8e52f1c0744a35a8d0c99ad637" title="returns the local radiation element" alt="" coords="1195,315,1528,343"/>
+<area shape="rect" id="node33" href="$class_radiation_element.html#a0bf19bc55f941930fc88dc744ae6e7dd" title="returns the area for this element" alt="" coords="1271,211,1452,239"/>
+<area shape="rect" id="node23" href="$class_radiation_element.html#a6d2ab9caa8a639051ddcff42e2a8967f" title="init this object" alt="" coords="1576,290,1728,318"/>
+<area shape="rect" id="node25" href="$class_radiation_element.html#af283e728f86eea3d9dcdc15e4a513999" title="method to init the local radiation element in its own coordinates" alt="" coords="1776,290,2064,318"/>
+<area shape="rect" id="node39" href="$class_radiation_element.html#ada5a7265983fb39e0ce10eebeeea8aca" title="face ID for the finite element" alt="" coords="1241,159,1482,187"/>
+<area shape="rect" id="node47" href="$_contour_integration_8h.html#a30908586f46b5340e5287573d1ad50d4" title="EdgeFactor" alt="" coords="1316,419,1406,447"/>
+<area shape="rect" id="node49" href="$_contour_integration_8h.html#ad84e65074db2b5ea6d44efce76c3a679" title="F1" alt="" coords="1633,419,1671,447"/>
+<area shape="rect" id="node51" href="$_contour_integration_8h.html#acbcd2ccad2ab5d4231a258dcb2a81f2a" title="F2" alt="" coords="1633,471,1671,499"/>
+<area shape="rect" id="node53" href="$_contour_integration_8h.html#ae6f7aa8b9240a7cc1092283a5cf61f75" title="F3" alt="" coords="1633,367,1671,395"/>
+<area shape="rect" id="node60" href="$_mitalas_integration_8h.html#a9ef658341de25246820d0aaf0771337e" title="MitalasEdgeFactor" alt="" coords="1295,107,1428,135"/>
+<area shape="rect" id="node74" href="$class_radiation_element.html#a3cae7f1c590c9bb5de710f8e5fe517eb" title="ID of the finite element that this is attached to." alt="" coords="1255,471,1467,499"/>
+</map>

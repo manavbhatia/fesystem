@@ -1,0 +1,4 @@
+\form#0:$ [A][B]^{-1} $
+\form#1:$ \frac{\partial B_{ij}}{\partial T_{rad_k}} \lambda_j $
+\form#2:$ \sum_{j} [((AB^{-1})_{ii})^{j-1} (\gamma_i)^j ]_{diag} $
+\form#3:$ [K_{nl}] = \int_{\Omega} ([B_{m_{l}}]^T + [B_{m_{nl}}]^T) [D] [B_{m_{nl}}] d \Omega$

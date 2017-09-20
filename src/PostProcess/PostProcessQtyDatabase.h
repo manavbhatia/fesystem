@@ -1,0 +1,57 @@
+// $Id: PostProcessQtyDatabase.h,v 1.4 2006-09-05 20:41:50 manav Exp $
+
+#ifndef __post_process_qty_database_h__
+#define __post_process_qty_database_h__
+
+// C++ includes
+#include <map>
+#include <memory>
+
+// FESystem includes
+#include "PostProcess/ElemPostProcessQty.h"
+
+
+// libMesh includes
+
+
+typedef std::map<unsigned int, PostProcessQty*> PostProcessQtyMap;
+typedef std::map<unsigned int, PostProcessQtyMap*> AnalysisPostProcessMap;
+
+/// this class will store all the post process quantities and provide approproate 
+/// methods to return them
+class PostProcessQtyDatabase
+{
+ public:
+
+  /// constructor
+  PostProcessQtyDatabase();
+
+  /// destructor
+  ~PostProcessQtyDatabase();
+
+
+  /// add element post process qty. This method stores a copy of this quantity
+  /// @param discipline analysis discipline for which the the post process
+  /// quantity is being added
+  /// @param elem_ID ID of the elem
+  /// @param qty the post process qty to be stored
+  void addElementPostProcessQty(const unsigned int discipline,
+                                unsigned int elem_ID, 
+                                std::auto_ptr<ElemPostProcessQty> qty);
+  
+  /// get elem post process quantity. This method returns a copy of this quantity
+  /// @param discipline analysis discipline for which the the post process
+  /// quantity is being requested
+  /// @param elem_ID ID of the elem
+  PostProcessQty& getElementPostProcessQty(const unsigned int discipline,
+                                           unsigned int elem_ID);
+
+ protected:
+
+  /// map of discipline and post process quantity
+  AnalysisPostProcessMap analysis_post_process_map;
+
+};
+
+
+#endif // __post_process_qty_database_h__

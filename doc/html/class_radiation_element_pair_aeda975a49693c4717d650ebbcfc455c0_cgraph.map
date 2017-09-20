@@ -1,0 +1,8 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$class_radiation_element.html#ada5a7265983fb39e0ce10eebeeea8aca" title="face ID for the finite element" alt="" coords="363,5,605,33"/>
+<area shape="rect" id="node5" href="$class_radiation_element.html#a0bf19bc55f941930fc88dc744ae6e7dd" title="returns the area for this element" alt="" coords="394,57,574,85"/>
+<area shape="rect" id="node11" href="$class_radiation_element.html#ab314e67b810b03dca3a27ecc83788f9d" title="this function gets the geom elem for the radiation elem" alt="" coords="334,109,634,137"/>
+<area shape="rect" id="node14" href="$class_radiation_element.html#ab40d8a0c29577f96165f5adf8113a15e" title="returns the surface normal for this element" alt="" coords="363,161,605,189"/>
+<area shape="rect" id="node7" href="$class_radiation_element.html#a6d2ab9caa8a639051ddcff42e2a8967f" title="init this object" alt="" coords="683,109,834,137"/>
+<area shape="rect" id="node9" href="$class_radiation_element.html#af283e728f86eea3d9dcdc15e4a513999" title="method to init the local radiation element in its own coordinates" alt="" coords="883,109,1171,137"/>
+</map>

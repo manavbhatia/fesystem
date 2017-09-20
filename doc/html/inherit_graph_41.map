@@ -1,0 +1,8 @@
+<map id="G" name="G">
+<area shape="rect" id="node1" href="$class_load_set_base.html" title="LoadSetBase" alt="" coords="5,109,107,137"/>
+<area shape="rect" id="node3" href="$class_aeroelastic_load_set.html" title="AeroelasticLoadSet" alt="" coords="178,5,315,33"/>
+<area shape="rect" id="node5" href="$class_boundary_condition_load_set.html" title="BoundaryConditionLoadSet" alt="" coords="154,57,339,85"/>
+<area shape="rect" id="node7" href="$class_nodal_load_set.html" title="NodalLoadSet" alt="" coords="194,109,300,137"/>
+<area shape="rect" id="node9" href="$class_surface_load_set.html" title="SurfaceLoadSet" alt="" coords="188,161,305,189"/>
+<area shape="rect" id="node11" href="$class_volume_load_set.html" title="VolumeLoadSet" alt="" coords="189,213,304,241"/>
+</map>

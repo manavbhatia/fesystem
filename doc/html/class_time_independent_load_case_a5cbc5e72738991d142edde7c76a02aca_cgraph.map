@@ -1,0 +1,6 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$class_loads_1_1_load_data_info_base.html#a7bfae6e64be16249a20363e87151cddb" title="Loads::LoadDataInfoBase::getDVID" alt="" coords="446,5,679,33"/>
+<area shape="rect" id="node5" href="$class_loads_1_1_load_data_info_base.html#a0674106b5fc7b399a77deac3c5eae256" title="Loads::LoadDataInfoBase::getLoadNameEnumID" alt="" coords="405,57,720,85"/>
+<area shape="rect" id="node7" href="$class_loads_1_1_load_data_info_base.html#a1a3b7a2ed4b31c7aed079c116271cefd" title="Loads::LoadDataInfoBase::ifSensitivity" alt="" coords="438,109,687,137"/>
+<area shape="rect" id="node9" href="$class_loads_1_1_load_data_info_base.html#a13e17d92e13ea363bd62711d02ab21e0" title="Loads::LoadDataInfoBase::ifTimeDependent" alt="" coords="421,161,705,189"/>
+</map>

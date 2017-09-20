@@ -1,0 +1,7 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$class_loads_1_1_dirichlet_boundary_condition_data_info.html" title="Loads::DirichletBoundaryConditionDataInfo" alt="" coords="229,5,507,33"/>
+<area shape="rect" id="node5" href="$class_loads_1_1_elem_load_data_info.html" title="Loads::ElemLoadDataInfo" alt="" coords="280,57,456,85"/>
+<area shape="rect" id="node11" href="$class_loads_1_1_nodal_load_data_info.html" title="Loads::NodalLoadDataInfo" alt="" coords="278,109,458,137"/>
+<area shape="rect" id="node7" href="$class_loads_1_1_surface_load_data_info.html" title="Loads::SurfaceLoadDataInfo" alt="" coords="555,31,746,59"/>
+<area shape="rect" id="node9" href="$class_loads_1_1_volume_load_data_info.html" title="Loads::VolumeLoadDataInfo" alt="" coords="556,83,745,111"/>
+</map>

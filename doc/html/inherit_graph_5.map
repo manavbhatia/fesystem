@@ -1,0 +1,9 @@
+<map id="G" name="G">
+<area shape="rect" id="node1" href="$class_discipline_1_1_analysis_discipline_base.html" title="Discipline::AnalysisDisciplineBase" alt="" coords="6,109,229,137"/>
+<area shape="rect" id="node3" href="$class_discipline_1_1_aerodynamic_discipline_base.html" title="base class of the panel methods" alt="" coords="277,5,528,33"/>
+<area shape="rect" id="node7" href="$class_discipline_1_1_fluid_analysis.html" title="Discipline::FluidAnalysis" alt="" coords="320,57,485,85"/>
+<area shape="rect" id="node9" href="$class_discipline_1_1_structural_analysis.html" title="Discipline::StructuralAnalysis" alt="" coords="306,109,499,137"/>
+<area shape="rect" id="node11" href="$class_discipline_1_1_thermal_analysis.html" title="Discipline::ThermalAnalysis" alt="" coords="310,161,495,189"/>
+<area shape="rect" id="node13" href="$class_f_e_interpolation_analysis.html" title="FEInterpolationAnalysis" alt="" coords="322,213,483,241"/>
+<area shape="rect" id="node5" href="$class_discipline_1_1_piston_theory.html" title="Discipline::PistonTheory" alt="" coords="576,5,741,33"/>
+</map>

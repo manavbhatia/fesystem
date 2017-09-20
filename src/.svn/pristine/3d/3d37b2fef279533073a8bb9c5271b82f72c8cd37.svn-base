@@ -1,0 +1,782 @@
+// $Id: TimeLogs.C,v 1.1.4.3 2007-05-08 05:19:13 manav Exp $
+
+// C/C++ includes
+#include <map>
+#include <stack>
+#include <string>
+#include <iostream>
+#include <iomanip>
+#include <ctime>
+#include <unistd.h>
+#include <sys/utsname.h>
+#include <sys/types.h>
+#include <pwd.h>
+#include <vector>
+
+// FESystem includes
+#include "Utilities/TimeLogs.h"
+#include "FESystem/FESystemExceptions.h"
+#include "FESystem/FESystemController.h"
+
+// libMesh includes
+
+
+
+
+
+
+FESystemUtility::HeaderEventData::HeaderEventData()
+{
+  
+}
+
+
+
+
+
+FESystemUtility::HeaderEventData::~HeaderEventData()
+{
+  // make sure that no open events exist
+  Assert(this->event_stack.empty(), ExcInternalError());
+  
+  // also, iterate on all events, and make sure that their call counters are all zero
+  std::map<std::string, unsigned int>::const_iterator it, end;
+  it = this->event_call_count.begin();
+  end = this->event_call_count.end();
+  
+  for (; it != end; it++)
+    {
+    Assert(it->second == 0, ExcInternalError());
+    }
+}
+
+
+
+
+
+const std::string&
+FESystemUtility::HeaderEventData::getCurrentEvent() const
+{
+  return this->event_stack.top();
+}
+
+
+
+
+unsigned int
+FESystemUtility::HeaderEventData::getEventCallCount(const std::string& event_name) const
+{
+  if (this->event_call_count.count(event_name) == 0)
+    return 0;
+  else
+    return this->event_call_count.find(event_name)->second;
+}
+
+
+
+
+FESystemUtility::HeaderEventData::EventStatus 
+FESystemUtility::HeaderEventData::getCurrentStatus() const
+{
+  // if there is nothing in the stack, things were stopped. Else, they are running
+  if (this->event_stack.empty())
+    return FESystemUtility::HeaderEventData::STOPPED;
+  else
+    return FESystemUtility::HeaderEventData::RUNNING;
+}
+
+
+
+void 
+FESystemUtility::HeaderEventData::removeCurrentEvent(const std::string& event_name)
+{
+  // make sure that this is same as the current event
+  Assert(this->getCurrentEvent() == event_name, ExcInternalError());
+  Assert(this->event_call_count.count(event_name) > 0, ExcInternalError());
+  
+  
+  this->event_stack.pop();
+  
+  // also decrement the counter of the event call map
+  this->event_call_count[event_name] --;
+}
+
+
+
+void 
+FESystemUtility::HeaderEventData::setCurrentEvent(const std::string& event_name)
+{
+  // push this event on the top of the event stack
+  this->event_stack.push(event_name);
+  
+  // increment the call counter for this event
+  if (this->event_call_count.count(event_name) == 0)
+    this->event_call_count[event_name] = 0;
+  
+  this->event_call_count[event_name] ++;
+}
+
+
+
+bool 
+FESystemUtility::HeaderEventData::eventsExist() const
+{
+  if (this->event_stack.empty())
+    return false;
+  else
+    return true;
+}
+
+
+void
+FESystemUtility::HeaderEventData::printEventCallCount(std::ostream& output)
+{
+  std::map<std::string, unsigned int>::const_iterator it, end;
+  it = this->event_call_count.begin();
+  end = this->event_call_count.end();
+  
+  output << "Event Call Count: " << std::endl;
+  for (; it != end; it++)
+    {
+    output << it->first << "   " << it->second << std::endl;
+    }
+
+  if (this->event_stack.size() > 0)
+    output << "Top Event in Stack :  " << this->event_stack.top() << std::endl;
+  else
+    output << "No Event in Stack" << std::endl;
+  
+  output << std::endl;
+}
+
+
+
+
+FESystemUtility::TimeLogs::TimeLogs():
+performance_logging(new FESystemUtility::PerformanceLogging("FESystem Run Time Log", true))
+{
+  
+}
+
+
+
+FESystemUtility::TimeLogs::~TimeLogs()
+{
+  // iterate and delete the header event data
+  std::map<std::string, FESystemUtility::HeaderEventData*>::iterator it, end;
+  it = this->event_map.begin();
+  end = this->event_map.end();
+  
+  for (; it != end; it++)
+    delete it->second;
+  
+  this->event_map.clear();
+}
+
+
+void
+FESystemUtility::TimeLogs::setEvent(const std::string& event_name,
+                                    const std::string& header)
+{
+  if (this->event_map.count(header) == 0)
+    this->event_map[header] = new HeaderEventData;
+  
+  FESystemUtility::HeaderEventData& header_data = *(this->event_map[header]);
+  
+  switch (header_data.getCurrentStatus())
+    {
+    case FESystemUtility::HeaderEventData::RUNNING:
+      {
+        if (header_data.getCurrentEvent() == event_name)
+          header_data.setCurrentEvent(event_name);
+        else
+          {
+          this->performance_logging->pause_event(header_data.getCurrentEvent(),
+                                                 header);
+          header_data.setCurrentEvent(event_name);
+          
+          // if the event has been called multiple times, it will be restarted, instead 
+          // of being started, since that means that the event was paused earlier
+          if (header_data.getEventCallCount(header_data.getCurrentEvent()) > 1)
+            this->performance_logging->restart_event(header_data.getCurrentEvent(),
+                                                     header);
+          else
+            this->performance_logging->start_event(header_data.getCurrentEvent(),
+                                                   header);
+          
+          }
+      }      
+      break;
+      
+    case FESystemUtility::HeaderEventData::STOPPED:
+      {
+        // there is no logging being performed, and hence, the first event 
+        // is being started now.
+        header_data.setCurrentEvent(event_name);
+        this->performance_logging->start_event(header_data.getCurrentEvent(),
+                                               header);
+      }
+      break;
+    }
+}
+
+
+
+void
+FESystemUtility::TimeLogs::unsetEvent(const std::string& event_name, 
+                                      const std::string& header)
+{
+  Assert(this->event_map.count(header) > 0, ExcInternalError());
+  
+  FESystemUtility::HeaderEventData& header_data = *(this->event_map[header]);
+  
+  Assert (header_data.getCurrentEvent() == event_name, ExcInternalError());
+  
+  header_data.removeCurrentEvent(event_name);
+  
+  // if the next event is also the same as the event just stopped, then do not stop logging
+  if (header_data.eventsExist())
+    {
+    // even after removing this event, if the call count is still zero for it, 
+    // then pause the event, and do not stop it
+    if (header_data.getEventCallCount(event_name) > 0)
+      this->performance_logging->pause_event(event_name, header);
+    else
+      this->performance_logging->stop_event(event_name, header);
+    
+    // next, simply restart the current event.
+    this->performance_logging->restart_event(header_data.getCurrentEvent(), header);
+    }
+  else
+    this->performance_logging->stop_event(event_name, header);
+}
+
+
+
+
+
+
+// ------------------------------------------------------------
+// FESystemUtility::PerformanceLogging class member funcions
+
+bool FESystemUtility::PerformanceLogging::called = false;
+
+
+FESystemUtility::PerformanceLogging::PerformanceLogging(const std::string& ln,
+                                                        const bool le) :
+label_name(ln),
+log_events(le)
+{
+  if (log_events)
+    clear();
+}
+
+
+
+FESystemUtility::PerformanceLogging::~PerformanceLogging()
+{
+  if (log_events)
+    print_log();
+}
+
+
+
+void FESystemUtility::PerformanceLogging::clear()
+{
+  if (log_events)
+    {
+    //  check that all events are closed
+    for (std::map<std::pair<std::string,std::string>, PerfData>::iterator
+         pos = log.begin(); pos != log.end(); ++pos)
+      if (pos->second.open)
+        {
+        std::cout
+	      << "ERROR clearning performance log for class "
+	      << label_name << std::endl
+	      << "event " << pos->first.second << " is still being monitored!"
+	      << std::endl;
+        
+        error();
+        }
+        
+        
+        gettimeofday (&tstart, NULL);
+    
+    log.clear();
+    header_time.clear();
+    }
+}
+
+
+std::string FESystemUtility::PerformanceLogging::get_info_header() const
+{
+  OStringStream out;
+  
+  if (log_events)
+    {
+    
+#ifdef HAVE_LOCALE
+    OStringStream  dateStr;
+    time_t tm         = time(NULL);
+    struct tm* tmb    = localtime(&tm);
+    std::locale loc;
+    TimeIter            begin(dateStr);
+    const TimePut& tp = std::use_facet<TimePut>(loc);
+    tp.put(begin,
+           dateStr,
+           dateStr.fill(),
+           tmb,
+           'c');
+#endif
+    
+    // Get system information
+    struct utsname sysInfo;
+    uname(&sysInfo);
+    
+    // Get user information
+    struct passwd* p = getpwuid(getuid());
+    out << "\n";
+    
+    // Construct string stream objects for each of the outputs
+    OStringStream pid_stream;
+    OStringStream nprocs_stream;
+    OStringStream time_stream;
+    OStringStream os_stream;
+    OStringStream host_stream;
+    OStringStream osrel_stream;
+    OStringStream osver_stream;
+    OStringStream machine_stream;
+    OStringStream user_stream;
+    
+    // Put pointers to these streams in a vector
+    std::vector<OStringStream*> v(9);
+    v[0] = &pid_stream;
+    v[1] = &nprocs_stream;
+    v[2] = &time_stream;
+    v[3] = &os_stream;
+    v[4] = &host_stream;
+    v[5] = &osrel_stream;
+    v[6] = &osver_stream;
+    v[7] = &machine_stream;
+    v[8] = &user_stream;
+    
+    // Fill string stream objects
+    if (libMesh::n_processors() > 1)
+      {
+      pid_stream     << "| Processor id:   " << FESystem::local_processor; 
+      nprocs_stream  << "| Num Processors: " << FESystem::total_processors;
+      }
+    
+#ifdef HAVE_LOCALE						       
+    time_stream    << "| Time:           " << dateStr.str()          ; 
+#endif								       
+    
+    os_stream      << "| OS:             " << sysInfo.sysname        ; 
+    host_stream    << "| HostName:       " << sysInfo.nodename       ; 
+    osrel_stream   << "| OS Release:     " << sysInfo.release        ; 
+    osver_stream   << "| OS Version:     " << sysInfo.version        ; 
+    machine_stream << "| Machine:        " << sysInfo.machine        ; 
+    user_stream    << "| Username:       " << p->pw_name             ; 
+    
+    // Find the longest string, use that to set the line length for formatting.
+    unsigned int max_length = 0;
+    for (unsigned int i=0; i<v.size(); ++i)
+      if (v[i]->str().size() > max_length)
+        max_length = v[i]->str().size();
+    
+    // Print dashed line
+    this->_character_line(max_length+2, '-', out);
+    out << '\n';
+    
+    // Loop over all the strings and print them out with end-formatting
+    for (unsigned int i=0; i<v.size(); ++i)
+      {
+      if (v[i]->str().size() > 0)
+        {
+	      out << v[i]->str();
+	      OSSStringright(out, max_length+4 - v[i]->str().size(), "|\n");
+        }
+      }
+    
+    // Print dashed line
+    this->_character_line(max_length+2, '-', out);
+    out << '\n';
+    }
+  
+  return out.str();
+}
+
+
+
+
+std::string FESystemUtility::PerformanceLogging::get_perf_info() const
+{
+  OStringStream out;
+  
+  if (log_events && !log.empty())
+    {
+    // Stop timing for this event.
+    struct timeval tstop;
+    
+    gettimeofday (&tstop, NULL);
+	  
+    const double elapsed_time = (static_cast<double>(tstop.tv_sec  - tstart.tv_sec) +
+                                 static_cast<double>(tstop.tv_usec - tstart.tv_usec)*1.e-6);
+    
+    // Figure out the formatting required based on the event names
+    // Unsigned ints for each of the column widths
+    unsigned int event_col_width            = 30;
+    const unsigned int ncalls_col_width     = 10;
+    const unsigned int tot_time_col_width   = 12;
+    const unsigned int avg_time_col_width   = 12;
+    const unsigned int pct_active_col_width = 13;
+    
+    // Iterator to be used to loop over the map of timed events
+    std::map<std::pair<std::string,std::string>, PerfData>::const_iterator pos;
+    
+    // Reset the event column width based on the longest event name plus
+    // a possible 2-character indentation, plus a space.
+    for (pos = log.begin(); pos != log.end(); ++pos)
+      if (pos->first.second.size()+3 > event_col_width)
+        event_col_width = pos->first.second.size()+3;
+    
+    // Set the total width of the column
+    const unsigned int total_col_width =
+      event_col_width     +
+      ncalls_col_width    +
+      tot_time_col_width  +
+      avg_time_col_width  +
+      pct_active_col_width+1;
+    
+    // Print dashed line
+    out << ' ';
+    this->_character_line(total_col_width, '-', out);
+    out << '\n';
+    
+    {
+      // Construct temporary message string
+      OStringStream temp;
+      temp << "| " << label_name << " Performance: Alive time=" << elapsed_time;
+      
+      // Get the size of the temporary string
+      const unsigned int temp_size = temp.str().size();
+      
+      // Send the temporary message to the output
+      out << temp.str();
+      
+      // If this string is longer than the previously computed total
+      // column width, skip the additional formatting... this shouldn't
+      // happen often, hopefully.  Add two additional characters for a
+      // space and a "|" character at the end.
+      if (temp_size < total_col_width+2)
+        {
+        OSSStringright(out, total_col_width-temp_size+2, "|");
+        }
+      
+      out << '\n';
+    }
+    
+    // Print dashed line
+    out << ' ';
+    this->_character_line(total_col_width, '-', out);
+    out << '\n';
+    
+    
+    // Write out the header for the events listing
+    out << "| ";
+    OSSStringleft(out,event_col_width,"Event");      
+    OSSStringleft(out,ncalls_col_width,"nCalls");      
+    OSSStringleft(out,tot_time_col_width,"Total");      
+    OSSStringleft(out,avg_time_col_width,"Avg");      
+    OSSStringleft(out,pct_active_col_width,"Percent of");      
+    out << "|\n";      
+    out << "| ";
+    OSSStringleft(out,event_col_width,"");
+    OSSStringleft(out,ncalls_col_width,"");
+    OSSStringleft(out,tot_time_col_width,"Time");
+    OSSStringleft(out,avg_time_col_width,"Time");
+    OSSStringleft(out,pct_active_col_width,"Active Time");
+    
+    out << "|\n|";
+    this->_character_line(total_col_width, '-', out);
+    out << "|\n|";
+    this->_character_line(total_col_width, ' ', out);
+    out << "|\n";
+    
+    std::string last_header("");
+    pos = log.begin();
+    
+    while ( pos != log.end())
+      {
+      const PerfData& perf_data = pos->second;
+      const PerfData& header_perf_data = this->header_time.find(pos->first.first)->second;
+      
+//      // Only print the event if the count is non-zero.
+//      if (perf_data.count != 0)
+//        {
+	      const unsigned int perf_count    = perf_data.count;
+	      const double       perf_time     = perf_data.tot_time;
+	      const unsigned int header_perf_count    = header_perf_data.count;
+	      const double       header_perf_time     = header_perf_data.tot_time;
+	      const double       perf_avg_time = perf_time / static_cast<double>(perf_count);
+	      const double       perf_percent  = (header_perf_time != 0.) ? perf_time / header_perf_time * 100. : 0.;
+                
+	      // Print the event name
+	      if (pos->first.first == "")
+          {
+          out << "| ";
+          OSSStringleft(out,event_col_width,pos->first.second);
+          }
+	      else
+          {
+          if (last_header != pos->first.first)
+            {
+            last_header = pos->first.first;
+
+            // print blank line
+            out << "|";
+            this->_character_line(total_col_width, ' ', out);
+            out << "|\n";
+            
+            // print header name (account for additional space before
+            // the header)
+            out << "| ";
+            OSSStringleft(out, total_col_width-1, pos->first.first);
+            out << "|\n";
+            }
+          
+          out << "|   ";
+          OSSStringleft(out, event_col_width-2, pos->first.second);
+          }
+	      
+        
+	      // Print the number of calls to the event.  
+	      OSSInt(out,ncalls_col_width,perf_count);
+        
+	      // Print the total time spent in the event
+	      out.setf(std::ios::fixed);
+	      OSSRealleft(out,tot_time_col_width,4,perf_time);
+        
+	      // Print the average time per function call
+	      OSSRealleft(out,avg_time_col_width,6,perf_avg_time);
+        
+	      // Print the percentage of the time spent in the event
+	      OSSRealleft(out,pct_active_col_width,2,perf_percent);
+	      
+	      out << "|";
+	      out << '\n';
+//        }
+        
+        // check if the next header is different from the current header. If it is, 
+        // a summary of the current header needs to be printed
+        pos++;
+        if (pos == log.end() || last_header != pos->first.first)
+          {
+          // print summary
+          out << ' ';
+          this->_character_line(total_col_width, '-', out);
+          out << '\n';
+          out << "| ";
+          OSSStringleft(out,event_col_width,"Totals:");
+          
+          // Print the total number of logged function calls
+          // For routines which are called many times, summed_function_calls may
+          // exceed 7 digits.  If this happens use, scientific notation.
+          if (header_perf_count < 9999999)
+            {
+            OSSInt(out,ncalls_col_width, header_perf_count);
+            }
+          
+          else
+            {
+            out.setf(std::ios::scientific);
+            OSSRealleft(out, ncalls_col_width, 3, static_cast<Real>(header_perf_count));
+            out.unsetf(std::ios::scientific);
+            }
+          
+          // Print the total time spent in logged function calls
+          out.setf(std::ios::fixed);
+          OSSRealleft(out,tot_time_col_width,4,header_perf_time);
+          
+          // Null, the average time doesn't make sense as a total
+          out.width(avg_time_col_width);
+          out << "";
+          
+          // Print the total percentage
+          OSSRealleft(out,pct_active_col_width,2,' ');
+          
+          out << "|\n ";
+          this->_character_line(total_col_width, '-', out);
+          out << '\n';
+          }
+      }
+    }
+  
+  return out.str();
+}
+
+
+
+std::string FESystemUtility::PerformanceLogging::get_log() const
+{
+  OStringStream out;
+  
+  if (log_events)
+    {
+    // Only print the log
+    // if it isn't empty
+    if (!log.empty())
+      {
+      // Possibly print machine info,
+      // but only do this once
+      if (!called)
+        {
+	      called = true;
+	      out << get_info_header();
+        }	  
+      out << get_perf_info();
+      }
+    }
+  
+  return out.str();
+}
+
+
+
+void FESystemUtility::PerformanceLogging::print_log() const
+{
+  if (log_events)
+    std::cout << get_log() << std::endl;
+}
+
+
+
+void FESystemUtility::PerformanceLogging::start_event(const std::string &label,
+                                                      const std::string &header)
+{
+  if (log_events)
+    {
+    // Get a reference to the event data to avoid
+    // repeated map lookups
+    PerfData& perf_data = log[std::make_pair(header,label)];
+    
+    // make sure we aren't currently
+    // monitoring this event      
+    if (perf_data.open)
+      {
+      std::cerr << "ERROR logging event " << label << std::endl
+		    << "Did you forget to stop logging it?" << std::endl;
+      error();
+      }
+    
+    perf_data.open = true;
+    
+    gettimeofday (&perf_data.tstart, NULL);
+    }
+}
+
+
+
+void FESystemUtility::PerformanceLogging::stop_event(const std::string &label,
+                                                     const std::string &header)
+{
+  if (log_events)
+    {
+    // Get a reference to the event data to avoid
+    // repeated map lookups
+    PerfData& perf_data = log[std::make_pair(header,label)];
+    PerfData& header_perf_data = header_time[header];
+    
+    // make sure we are currently
+    // monitoring this event
+    if (!perf_data.open)
+      {
+      std::cerr << "ERROR logging event " << label << std::endl
+		    << "Did you forget to start or restart it?" << std::endl;
+      error();
+      }
+    
+    perf_data.open = false;
+    
+    struct timeval tstop;
+    
+    gettimeofday (&tstop, NULL);
+    
+    const double elapsed_time = (static_cast<double>(tstop.tv_sec  - perf_data.tstart.tv_sec) +
+                                 static_cast<double>(tstop.tv_usec - perf_data.tstart.tv_usec)*1.e-6);      
+    
+    perf_data.tot_time += elapsed_time;
+    perf_data.count++;
+    header_perf_data.tot_time += elapsed_time;
+    header_perf_data.count++;
+    }
+}
+
+
+
+void FESystemUtility::PerformanceLogging::pause_event(const std::string &label,
+                                                      const std::string &header)
+{
+  if (log_events)
+    {
+    // Get a reference to the event data to avoid
+    // repeated map lookups
+    PerfData& perf_data = log[std::make_pair(header,label)];
+    PerfData& header_perf_data = header_time[header];
+    
+    // make sure we are currently
+    // monitoring this event
+    if (!perf_data.open)
+      {
+      std::cerr << "ERROR pausing event " << label << std::endl
+		    << "Did you forget to start logging it?" << std::endl;	  
+      error();
+      }
+    
+    struct timeval tstop;
+    
+    gettimeofday (&tstop, NULL);
+    
+    const double elapsed_time = (static_cast<double>(tstop.tv_sec  - perf_data.tstart.tv_sec) +
+                                 static_cast<double>(tstop.tv_usec - perf_data.tstart.tv_usec)*1.e-6);      
+    
+    perf_data.tot_time += elapsed_time;
+    header_perf_data.tot_time += elapsed_time;
+    }
+}
+
+
+
+void FESystemUtility::PerformanceLogging::restart_event(const std::string &label,
+                                                        const std::string &header)
+{
+  if (log_events)
+    {
+    // Get a reference to the event data to avoid
+    // repeated map lookups
+    PerfData& perf_data = log[std::make_pair(header,label)];
+    
+    // make sure we are currently
+    // monitoring this event
+    if (!perf_data.open)
+      {
+      std::cerr << "ERROR restarting event " << label << std::endl
+		    << "Did you forget to start or pause it?" << std::endl;	  
+      error();
+      }
+    
+    gettimeofday (&perf_data.tstart, NULL);
+    }
+}
+
+
+
+
+void FESystemUtility::PerformanceLogging::_character_line(const unsigned int n,
+                                                          const char c,
+                                                          OStringStream& out) const
+{
+  for (unsigned int i=0; i<n; ++i)
+    out << c;
+}
+

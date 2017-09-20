@@ -1,0 +1,11 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$_contour_integration_8h.html#a30908586f46b5340e5287573d1ad50d4" title="EdgeFactor" alt="" coords="452,57,542,85"/>
+<area shape="rect" id="node11" href="$class_radiation_element.html#a0bf19bc55f941930fc88dc744ae6e7dd" title="returns the area for this element" alt="" coords="407,109,588,137"/>
+<area shape="rect" id="node17" href="$class_radiation_element.html#ab314e67b810b03dca3a27ecc83788f9d" title="this function gets the geom elem for the radiation elem" alt="" coords="347,161,648,189"/>
+<area shape="rect" id="node20" href="$class_radiation_element.html#ab40d8a0c29577f96165f5adf8113a15e" title="returns the surface normal for this element" alt="" coords="377,213,618,241"/>
+<area shape="rect" id="node5" href="$_contour_integration_8h.html#ad84e65074db2b5ea6d44efce76c3a679" title="F1" alt="" coords="753,5,791,33"/>
+<area shape="rect" id="node7" href="$_contour_integration_8h.html#acbcd2ccad2ab5d4231a258dcb2a81f2a" title="F2" alt="" coords="753,57,791,85"/>
+<area shape="rect" id="node9" href="$_contour_integration_8h.html#ae6f7aa8b9240a7cc1092283a5cf61f75" title="F3" alt="" coords="753,109,791,137"/>
+<area shape="rect" id="node13" href="$class_radiation_element.html#a6d2ab9caa8a639051ddcff42e2a8967f" title="init this object" alt="" coords="696,161,848,189"/>
+<area shape="rect" id="node15" href="$class_radiation_element.html#af283e728f86eea3d9dcdc15e4a513999" title="method to init the local radiation element in its own coordinates" alt="" coords="896,161,1184,189"/>
+</map>

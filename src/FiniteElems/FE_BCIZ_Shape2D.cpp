@@ -1,0 +1,417 @@
+// $Id:$
+/*
+ *  FE_BCIZ_Shape2D.cpp
+ *  fesystem_xcode
+ *
+ *  Created by Manav Bhatia on 1/30/09.
+ *  Copyright 2009 Virginia Tech. All rights reserved.
+ *
+ */
+
+
+// $Id: FEBatozShape2D.C,v 1.5.6.1 2007-03-14 22:05:02 manav Exp $
+
+// C++ includes
+#include <cassert>
+
+// FESystem inlcludes
+//#include "FESystem/FESystemExceptions.h"
+
+// Local includes
+#include "fe.h"
+#include "elem.h"
+
+
+
+template <>
+Real FE<2,BCIZ>::shape(const ElemType type,
+                        const Order order,
+                        const unsigned int i,
+                        const Point& p)
+{
+  // params not used for now
+  (void) type;
+  (void) order;
+  (void) i;
+  (void) p;
+  
+  std::cerr << "Batoz elements require the real element\n"
+  << "to construct gradient-based degrees of freedom."
+  << std::endl;
+  
+  libmesh_error();
+  return 0.;
+}
+
+
+
+template <>
+Real FE<2,BCIZ>::shape(const Elem* elem,
+                        const Order order,
+                        const unsigned int i,
+                        const Point& p)
+{
+  assert (elem != NULL);
+  
+  assert(order == SECOND);
+  
+  
+  // -- keep in mind that the index numbers for the elems start at 0.
+  // -- all shape functions for this element are in a variable major format. Hence, 
+  //  they follow w1, w2, w3, thetax1, thetax2, thetax3, thetay1, thetay2, thetay3.
+  
+	switch (elem->type())
+  {
+    case TRI3:
+    {
+      // local static variables for shape functions
+      static double N1, N2, N3;
+      
+      // local static variables for edge lengths
+      static double b1, b2, b3, c1, c2, c3;
+      
+      const Point& point0 = elem->point(0);
+      const Point& point1 = elem->point(1);
+      const Point& point2 = elem->point(2);
+
+      b1 = point1(1) - point2(1);
+      b2 = point2(1) - point0(1);
+      b3 = point0(1) - point1(1);
+
+      c1 =  point2(0) - point1(0);
+      c2 =  point0(0) - point2(0);
+      c3 =  point1(0) - point0(0);
+      
+      N1 = FE<2,LAGRANGE>::shape(TRI3, FIRST, 0, p);
+      N2 = FE<2,LAGRANGE>::shape(TRI3, FIRST, 1, p);
+      N3 = FE<2,LAGRANGE>::shape(TRI3, FIRST, 2, p);
+      
+      
+      switch (i)
+      {
+        case 0:
+        {
+          // F1, w1
+          return N1 + N1 * N1 * (N2 + N3) - N1 * (N2 * N2 + N3 * N3);
+        }
+          break;
+          
+        case 1:
+        {
+          // F2, w2
+          return N2 + N2 * N2 * (N3 + N1) - N2 * (N3 * N3 + N1 * N1);
+        }
+          break;
+          
+        case 2:
+        {
+          // F3, w3
+          return N3 + N3 * N3 * (N1 + N2) - N3 * (N1 * N1 + N2 * N2);
+        }
+          break;
+          
+        case 3:
+        {
+          // Fx1, thetax1
+          return N1 * N1 * (b3 * N2 - b2 * N3) + 0.5 * (b3 - b2) * N1 * N2 * N3;
+        }
+          break;
+          
+        case 4:
+        {
+          // Fx2, thetax2
+          return N2 * N2 * (b1 * N3 - b3 * N1) + 0.5 * (b1 - b3) * N1 * N2 * N3;
+        }
+          break;
+          
+        case 5:
+        {
+          // Fx3, thetax3
+          return N3 * N3 * (b2 * N1 - b1 * N2) + 0.5 * (b2 - b1) * N1 * N2 * N3;
+        }
+          break;
+          
+        case 6:
+        {
+          // Fy1, thetay1
+          return N1 * N1 * (c3 * N2 - c2 * N3) + 0.5 * (c3 - c2) * N1 * N2 * N3;
+        }
+          break;
+          
+        case 7:
+        {
+          // Fy2, thetay2
+          return N2 * N2 * (c1 * N3 - c3 * N1) + 0.5 * (c1 - c3) * N1 * N2 * N3;
+        }
+          break;
+          
+        case 8:
+        {
+          // Fy3, thetay3
+          return N3 * N3 * (c2 * N1 - c1 * N2) + 0.5 * (c2 - c1) * N1 * N2 * N3;
+        }
+          break;
+          
+        default:
+          libmesh_error();
+      }
+    }
+      break;
+      
+	  case QUAD4:
+    {
+      libmesh_error();
+    }
+      
+	    
+	  default:
+    {
+      std::cerr << "ERROR: Unsupported 2D element type!: " << elem->type()
+      << std::endl;
+      libmesh_error();
+    }
+  }
+  
+  
+  // should never get here
+  libmesh_error();
+  return 0.;
+}
+
+
+
+template <>
+Real FE<2,BCIZ>::shape_deriv(const ElemType type,
+                              const Order order,
+                              const unsigned int i,
+                              const unsigned int j,
+                              const Point& p)
+{
+  // params not used here
+  (void) type;
+  (void) order;
+  (void) i;
+  (void) j;
+  (void) p;
+  
+  std::cerr << "Batoz elements require the real element\n"
+  << "to construct gradient-based degrees of freedom."
+  << std::endl;
+  
+  libmesh_error();
+  return 0.;
+}
+
+
+
+template <>
+Real FE<2,BCIZ>::shape_deriv(const Elem* elem,
+                              const Order order,
+                              const unsigned int i,
+                              const unsigned int j,
+                              const Point& p)
+{
+  assert (elem != NULL);
+  
+  assert(order == SECOND);
+  
+  
+  // -- keep in mind that the index numbers for the elems start at 0.
+  // -- all shape functions for this element are in a variable major format. Hence, 
+  //  they follow w1, w2, w3, thetax1, thetax2, thetax3, thetay1, thetay2, thetay3.
+  
+	switch (elem->type())
+  {      
+    case TRI3:
+    {
+      // local static variables for shape functions
+      static double N1, N2, N3, dN1, dN2, dN3;
+      
+      // local static variables for edge lengths
+      static double b1, b2, b3, c1, c2, c3;
+      
+      const Point& point0 = elem->point(0);
+      const Point& point1 = elem->point(1);
+      const Point& point2 = elem->point(2);
+      
+      b1 = point1(1) - point2(1);
+      b2 = point2(1) - point0(1);
+      b3 = point0(1) - point1(1);
+      
+      c1 =  point2(0) - point1(0);
+      c2 =  point0(0) - point2(0);
+      c3 =  point1(0) - point0(0);
+      
+      N1 = FE<2,LAGRANGE>::shape(TRI3, FIRST, 0, p);
+      N2 = FE<2,LAGRANGE>::shape(TRI3, FIRST, 1, p);
+      N3 = FE<2,LAGRANGE>::shape(TRI3, FIRST, 2, p);
+      
+      dN1 = FE<2,LAGRANGE>::shape_deriv(TRI3, FIRST, 0, j, p);
+      dN2 = FE<2,LAGRANGE>::shape_deriv(TRI3, FIRST, 1, j, p);
+      dN3 = FE<2,LAGRANGE>::shape_deriv(TRI3, FIRST, 2, j, p);
+      
+      switch (i)
+      {
+        case 0:
+        {
+          // F1, w1
+          return dN1 + 2.0 * N1 * dN1 * (N2 + N3) + N1 * N1 * (dN2 + dN3) -
+          dN1 * (N2 * N2 + N3 * N3) - N1 * (2.0 * N2 * dN2 + 2.0 * N3 * dN3);
+        }
+          break;
+          
+        case 1:
+        {
+          // F2, w2
+          return dN2 + 2.0 * N2 * dN2 * (N3 + N1) + N2 * N2 * (dN3 + dN1) -
+          dN2 * (N3 * N3 + N1 * N1) - N2 * (2.0 * N3 * dN3 + 2.0 * N1 * dN1);
+        }
+          break;
+          
+        case 2:
+        {
+          // F3, w3
+          return dN3 + 2.0 * N3 * dN3 * (N1 + N2) + N3 * N3 * (dN1 + dN2) -
+          dN3 * (N1 * N1 + N2 * N2) - N3 * (2.0 * N1 * dN1 + 2.0 * N2 * dN2);
+        }
+          break;
+          
+        case 3:
+        {
+          // Fx1, thetax1
+          return 2 * N1 * dN1 * (b3 * N2 - b2 * N3) +  N1 * N1 * (b3 * dN2 - b2 * dN3) + 
+          0.5 * (b3 - b2) * (dN1 * N2 * N3 + N1 * dN2 * N3 + N1 * N2 * dN3);
+        }
+          break;
+          
+        case 4:
+        {
+          // Fx2, thetax2
+          return 2 * N2 * dN2 * (b1 * N3 - b3 * N1) +  N2 * N2 * (b1 * dN3 - b3 * dN1) + 
+          0.5 * (b1 - b3) * (dN1 * N2 * N3 + N1 * dN2 * N3 + N1 * N2 * dN3);
+        }
+          break;
+          
+        case 5:
+        {
+          // Fx3, thetax3
+          return 2 * N3 * dN3 * (b2 * N1 - b1 * N2) +  N3 * N3 * (b2 * dN1 - b1 * dN2) + 
+          0.5 * (b2 - b1) * (dN1 * N2 * N3 + N1 * dN2 * N3 + N1 * N2 * dN3);
+        }
+          break;
+          
+        case 6:
+        {
+          // Fy1, thetay1
+          return 2 * N1 * dN1 * (c3 * N2 - c2 * N3) +  N1 * N1 * (c3 * dN2 - c2 * dN3) + 
+          0.5 * (c3 - c2) * (dN1 * N2 * N3 + N1 * dN2 * N3 + N1 * N2 * dN3);
+        }
+          break;
+          
+        case 7:
+        {
+          // Fy2, thetay2
+          return 2 * N2 * dN2 * (c1 * N3 - c3 * N1) +  N2 * N2 * (c1 * dN3 - c3 * dN1) + 
+          0.5 * (c1 - c3) * (dN1 * N2 * N3 + N1 * dN2 * N3 + N1 * N2 * dN3);
+        }
+          break;
+          
+        case 8:
+        {
+          // Fy3, thetay3
+          return 2 * N3 * dN3 * (c2 * N1 - c1 * N2) +  N3 * N3 * (c2 * dN1 - c1 * dN2) + 
+          0.5 * (c2 - c1) * (dN1 * N2 * N3 + N1 * dN2 * N3 + N1 * N2 * dN3);
+        }
+          break;
+          
+        default:
+          libmesh_error();
+      }
+    }
+      break;
+
+	  case QUAD4:
+    {
+      libmesh_error();
+    }
+      
+	    
+	  default:
+    {
+      std::cerr << "ERROR: Unsupported 2D element type!: " << elem->type()
+      << std::endl;
+      libmesh_error();
+    }
+  }
+  
+  
+  // should never get here
+  libmesh_error();
+  return 0.;
+}
+
+
+
+
+template <>
+Real FE<2,BCIZ>::shape_second_deriv(const ElemType type,
+                                     const Order order,
+                                     const unsigned int i,
+                                     const unsigned int j,
+                                     const Point& p) 
+{
+  // params not used here
+  (void) type;
+  (void) order;
+  (void) i;
+  (void) j;
+  (void) p;
+  
+  std::cerr << "Batoz elements require the real element\n"
+  << "to construct gradient-based degrees of freedom."
+  << std::endl;
+  
+  libmesh_error();
+  return 0.;
+}
+
+
+
+template <>
+Real FE<2,BCIZ>::shape_second_deriv(const Elem* elem,
+                                     const Order order,
+                                     const unsigned int i,
+                                     const unsigned int j,
+                                     const Point& p)
+{
+  assert (elem != NULL);
+  
+  assert(order == SECOND);
+    
+	switch (elem->type())
+  {
+    case TRI3:
+    {
+      return 0.0;
+    }
+      break;
+      
+	  case QUAD4:
+    {
+      libmesh_error();
+    }
+      
+	    
+	  default:
+    {
+      std::cerr << "ERROR: Unsupported 2D element type!: " << elem->type()
+      << std::endl;
+      libmesh_error();
+    }
+  }
+  
+  
+  // should never get here
+  libmesh_error();
+  return 0.;
+}
